@@ -24,3 +24,9 @@ Open:
 - `http://localhost:8000/admin.php`
 
 Default admin password: `admin123`
+
+For production, set an environment variable before running:
+
+```bash
+ADMIN_PASSWORD="your-strong-password" php -S 0.0.0.0:8000
+```
