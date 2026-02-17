@@ -2,7 +2,7 @@
 session_start();
 define('DB_FILE', __DIR__ . '/data/data.db');
 define('SITE_TITLE', 'AutoCar Niche');
-define('PASSWORD_HASH', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'); // admin123
+define('PASSWORD_HASH', '$2y$12$iFCL8jqvoVMbZBcRy3wY..IUJNTqFcIfNAtUZRKiY4pFSspOevkHi'); // admin123
 
 function db_connect() {
     if (!file_exists(dirname(DB_FILE))) mkdir(dirname(DB_FILE), 0777, true);

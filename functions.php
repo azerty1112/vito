@@ -19,6 +19,13 @@ function getSetting($key, $default = null) {
     return $value !== false ? $value : $default;
 }
 
+
+function setSetting($key, $value) {
+    $pdo = db_connect();
+    $stmt = $pdo->prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+    $stmt->execute([$key, (string)$value]);
+}
+
 function articleExists($title) {
     $pdo = db_connect();
     $stmt = $pdo->prepare("SELECT id FROM articles WHERE title = ?");
@@ -42,6 +49,19 @@ function generateUniqueSlug($title) {
         $slug = $base . '-' . $i;
         $i++;
     }
+}
+
+function verifyAdminPassword($password) {
+    if (!is_string($password) || $password === '') {
+        return false;
+    }
+
+    $adminPassword = getenv('ADMIN_PASSWORD');
+    if (is_string($adminPassword) && $adminPassword !== '' && hash_equals($adminPassword, $password)) {
+        return true;
+    }
+
+    return password_verify($password, PASSWORD_HASH);
 }
 
 function getRandomIntro($title) {
@@ -76,7 +96,11 @@ function generateArticle($title) {
     $content .= "<h2>Pros and Cons</h2>\n<ul><li><strong>Pros:</strong> Excellent build quality, modern tech, comfortable ride.</li><li><strong>Cons:</strong> Slightly higher price point, limited cargo in some trims.</li></ul>\n";
     $content .= "<p class='mt-5'>In conclusion, the $title is a standout choice for car enthusiasts who demand both style and substance. Highly recommended!</p>";
 
-    $excerpt = substr(strip_tags($content), 0, 200) . '...';
+    $plainText = trim(strip_tags($content));
+    $excerpt = mb_substr($plainText, 0, 200);
+    if (mb_strlen($plainText) > 200) {
+        $excerpt .= '...';
+    }
 
     return [
         'content' => $content,
