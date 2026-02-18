@@ -11,13 +11,38 @@
             --brand-primary: #0d6efd;
             --brand-dark: #111827;
             --surface: #ffffff;
-            --app-bg: radial-gradient(circle at top right, #e9f2ff 0%, #f7f9fc 45%, #f3f4f6 100%);
+            --app-bg: radial-gradient(circle at 10% 20%, #dbeafe 0%, #f5f3ff 42%, #ecfeff 100%);
         }
 
         body {
             background: var(--app-bg);
             color: #1f2937;
             min-height: 100vh;
+            position: relative;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: fixed;
+            width: 320px;
+            height: 320px;
+            border-radius: 50%;
+            z-index: -1;
+            filter: blur(20px);
+            opacity: 0.4;
+        }
+
+        body::before {
+            top: -90px;
+            right: -70px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.75), rgba(59, 130, 246, 0));
+        }
+
+        body::after {
+            bottom: -120px;
+            left: -70px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.65), rgba(139, 92, 246, 0));
         }
 
         .navbar-brand {
@@ -26,21 +51,24 @@
         }
 
         .navbar {
-            background: linear-gradient(120deg, #0f172a 0%, #111827 65%, #1f2937 100%) !important;
+            background: linear-gradient(120deg, rgba(15, 23, 42, 0.92) 0%, rgba(17, 24, 39, 0.9) 65%, rgba(30, 41, 59, 0.9) 100%) !important;
             box-shadow: 0 10px 25px rgba(15, 23, 42, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.25);
         }
 
         .page-hero {
-            background: linear-gradient(120deg, rgba(13, 110, 253, 0.12), rgba(15, 23, 42, 0.08));
-            border: 1px solid rgba(13, 110, 253, 0.15);
-            border-radius: 1rem;
-            padding: 1.25rem;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(15, 23, 42, 0.08), rgba(14, 116, 144, 0.16));
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            box-shadow: 0 18px 45px rgba(37, 99, 235, 0.14);
         }
 
         .stats-card {
-            background: var(--surface);
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
             border-radius: 1rem;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
             border: 1px solid rgba(148, 163, 184, 0.18);
         }
 
@@ -67,14 +95,14 @@
             filter: saturate(1.05);
         }
 
-        .featured-spotlight {
-            border-radius: 1rem;
-            box-shadow: 0 18px 35px rgba(13, 110, 253, 0.23);
-        }
-
         .btn-primary {
             background: linear-gradient(120deg, #2563eb, #1d4ed8);
             border: none;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(120deg, #1d4ed8, #1e40af);
         }
 
         .pagination .page-link {
@@ -82,18 +110,36 @@
             margin-inline: 2px;
         }
 
+        .toolbar-strip {
+            margin-top: 0.85rem;
+            padding-inline: 0.25rem;
+        }
+
         .toolbar-form {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 0.85rem;
-            padding: 0.6rem;
-            backdrop-filter: blur(4px);
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 0.95rem;
+            padding: 0.7rem;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(250px, 1.5fr) repeat(2, minmax(150px, 1fr)) auto;
+            gap: 0.6rem;
+            align-items: center;
         }
 
         .toolbar-form .form-control,
         .toolbar-form .form-select {
-            min-width: 165px;
+            min-width: 0;
             border-color: rgba(148, 163, 184, 0.45);
+        }
+
+        .toolbar-form input[type="search"] {
+            min-width: 220px;
+        }
+
+        .toolbar-form .btn {
+            min-width: 110px;
         }
 
         .toolbar-form .form-control:focus,
@@ -104,6 +150,10 @@
 
         .content-shell {
             max-width: 1180px;
+        }
+
+        .hero-subtitle {
+            max-width: 640px;
         }
 
         .article-content {
@@ -137,6 +187,32 @@
             margin-bottom: 0.85rem;
         }
 
+        .featured-spotlight {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 1rem;
+            box-shadow: 0 18px 35px rgba(13, 110, 253, 0.23);
+        }
+
+        .featured-spotlight::after {
+            content: "";
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            right: -35px;
+            top: -35px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+        }
+
+        .app-footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 2.2rem;
+        }
+
         .list-group-item {
             border: 0;
             border-bottom: 1px solid rgba(148, 163, 184, 0.2);
@@ -148,21 +224,21 @@
 
         @media (max-width: 767px) {
             .toolbar-form {
-                width: 100%;
-            }
-
-            .toolbar-form .form-control,
-            .toolbar-form .form-select {
-                min-width: 100%;
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container flex-wrap gap-2">
+    <div class="container flex-wrap gap-2 py-2">
         <a class="navbar-brand" href="index.php"><?= e(SITE_TITLE) ?></a>
-        <form class="toolbar-form d-flex gap-2 flex-wrap" method="get" action="index.php">
+    </div>
+</nav>
+
+<section class="toolbar-strip">
+    <div class="container content-shell">
+        <form class="toolbar-form" method="get" action="index.php">
             <input type="search" name="q" class="form-control" placeholder="Search articles..." value="<?= e($_GET['q'] ?? '') ?>">
             <select name="sort" class="form-select" aria-label="Sort articles">
                 <option value="newest" <?= (($_GET['sort'] ?? 'newest') === 'newest') ? 'selected' : '' ?>>Newest</option>
@@ -183,10 +259,10 @@
                 <?php endforeach; ?>
             </select>
             <input type="hidden" name="view" value="<?= e($_GET['view'] ?? 'grid') ?>">
-            <button class="btn btn-outline-light" type="submit">Apply</button>
+            <button class="btn btn-primary" type="submit">Apply</button>
         </form>
     </div>
-</nav>
+</section>
 
 <?php
 $pdo = db_connect();
@@ -263,7 +339,7 @@ $baseQuery['view'] = $view;
         <div>
             <span class="badge text-bg-primary mb-2">Automotive Insights</span>
             <h1 class="display-6 mb-1">Latest Automotive Articles</h1>
-            <p class="text-muted mb-0">Explore curated guides, reviews, and practical tips from the car world.</p>
+            <p class="text-muted mb-0 hero-subtitle">Explore curated guides, reviews, and practical tips from the car world — now with a cleaner, more modern reading experience.</p>
         </div>
         <div class="btn-group" role="group" aria-label="View switch">
             <?php $gridQuery = array_merge($baseQuery, ['view' => 'grid']); ?>
@@ -339,7 +415,7 @@ $baseQuery['view'] = $view;
 
     <?php if ($featured): ?>
         <?php $featuredQuery = array_merge($baseQuery, ['slug' => $featured['slug']]); ?>
-        <section class="featured-spotlight mb-4 p-4 text-white" style="background:linear-gradient(120deg,#0d6efd,#212529);">
+        <section class="featured-spotlight mb-4 p-4 text-white" style="background:linear-gradient(125deg,#2563eb,#0f172a 60%,#0f766e);">
             <small class="text-uppercase">Featured article</small>
             <h2 class="h4 mt-2"><?= e($featured['title']) ?></h2>
             <p class="mb-3"><?= e($featured['excerpt']) ?></p>
@@ -421,6 +497,10 @@ $baseQuery['view'] = $view;
         </nav>
     <?php endif; ?>
 <?php endif; ?>
+
+<footer class="app-footer">
+    Designed for car enthusiasts • <?= gmdate('Y') ?>
+</footer>
 </div>
 </body>
 </html>
