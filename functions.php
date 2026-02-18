@@ -203,7 +203,9 @@ function publishAutoArticleBySchedule($force = false) {
     }
 
     $data = generateArticle($title);
-    saveArticle($title, $data);
+    if (!saveArticle($title, $data)) {
+        return ['published' => 0, 'reason' => 'duplicate_title_or_content'];
+    }
     setSetting('auto_publish_last_run_at', date('Y-m-d H:i:s', $now));
 
     return ['published' => 1, 'reason' => 'ok', 'title' => $title];
@@ -228,6 +230,50 @@ function articleExists($title) {
     $stmt = $pdo->prepare("SELECT id FROM articles WHERE title = ?");
     $stmt->execute([$title]);
     return $stmt->fetch() !== false;
+}
+
+function normalizeTextForComparison($text) {
+    $text = mb_strtolower((string)$text, 'UTF-8');
+    $text = preg_replace('/\s+/u', ' ', $text);
+    return trim((string)$text);
+}
+
+function articleTitleVariantExists($title) {
+    $pdo = db_connect();
+    $baseSlug = slugify($title);
+    if ($baseSlug === '') {
+        return false;
+    }
+
+    $stmt = $pdo->prepare("SELECT 1 FROM articles WHERE slug = ? OR slug LIKE ? LIMIT 1");
+    $stmt->execute([$baseSlug, $baseSlug . '-%']);
+    return $stmt->fetchColumn() !== false;
+}
+
+function articleContentExists($content) {
+    $normalizedContent = normalizeTextForComparison(strip_tags((string)$content));
+    if ($normalizedContent === '') {
+        return false;
+    }
+
+    $pdo = db_connect();
+    $stmt = $pdo->query("SELECT content FROM articles ORDER BY id DESC LIMIT 200");
+    $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    foreach ($rows as $storedContent) {
+        $storedNormalized = normalizeTextForComparison(strip_tags((string)$storedContent));
+        if ($storedNormalized !== '' && hash_equals($storedNormalized, $normalizedContent)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isDuplicateArticlePayload($title, $content) {
+    return articleExists($title)
+        || articleTitleVariantExists($title)
+        || articleContentExists($content);
 }
 
 function generateUniqueSlug($title) {
@@ -454,10 +500,15 @@ function generateArticle($title) {
 }
 
 function saveArticle($title, $data) {
+    if (isDuplicateArticlePayload($title, $data['content'] ?? '')) {
+        return false;
+    }
+
     $pdo = db_connect();
     $slug = generateUniqueSlug($title);
     $stmt = $pdo->prepare("INSERT INTO articles (title, slug, content, image, excerpt, published_at, category) VALUES (?,?,?,?,?,?,?)");
     $stmt->execute([$title, $slug, $data['content'], $data['image'], $data['excerpt'], date('Y-m-d H:i:s'), 'Auto']);
+    return true;
 }
 
 function estimateReadingTime($htmlContent) {
