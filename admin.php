@@ -136,6 +136,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['generate_demo_pack'])) {
+        $demoTitles = [
+            '2026 Porsche Taycan Turbo GT Track Review',
+            'Best Hybrid SUVs for Families in 2026',
+            'Mercedes-AMG C63 Daily Driving Impressions',
+            'How Fast Charging Changed EV Road Trips',
+            'Budget Performance Cars Worth Buying This Year',
+        ];
+        $generated = 0;
+        foreach ($demoTitles as $title) {
+            if (!articleExists($title)) {
+                $data = generateArticle($title);
+                saveArticle($title, $data);
+                $generated++;
+            }
+        }
+
+        $_SESSION['flash_message'] = "Demo content pack generated: {$generated} new article(s).";
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['fetch_rss'])) {
         $sources = $pdo->query("SELECT url FROM rss_sources ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
         $count = 0;
@@ -207,17 +230,48 @@ $_SESSION['flash_type'] = 'info';
 
 $articleSearch = trim($_GET['qa'] ?? '');
 $rssSearch = trim($_GET['qr'] ?? '');
+$articleCategory = trim($_GET['cat'] ?? '');
+
+if (isset($_GET['export']) && $_GET['export'] === 'articles_json') {
+    $exportRows = $pdo->query("SELECT title, slug, excerpt, category, published_at FROM articles ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename=articles-export.json');
+    echo json_encode($exportRows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (isset($_GET['export']) && $_GET['export'] === 'articles_csv') {
+    $exportRows = $pdo->query("SELECT title, slug, category, published_at FROM articles ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=articles-export.csv');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['title', 'slug', 'category', 'published_at']);
+    foreach ($exportRows as $row) {
+        fputcsv($out, [$row['title'], $row['slug'], $row['category'], $row['published_at']]);
+    }
+    fclose($out);
+    exit;
+}
 
 $totalArticles = (int)$pdo->query("SELECT COUNT(*) FROM articles")->fetchColumn();
 $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
+$categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-$articleSql = "SELECT id, title, slug, published_at FROM articles";
+$articleSql = "SELECT id, title, slug, category, published_at FROM articles";
 $articleParams = [];
+$articleClauses = [];
 if ($articleSearch !== '') {
-    $articleSql .= " WHERE title LIKE :title";
+    $articleClauses[] = "title LIKE :title";
     $articleParams['title'] = '%' . $articleSearch . '%';
+}
+if ($articleCategory !== '') {
+    $articleClauses[] = "category = :cat";
+    $articleParams['cat'] = $articleCategory;
+}
+if ($articleClauses) {
+    $articleSql .= ' WHERE ' . implode(' AND ', $articleClauses);
 }
 $articleSql .= " ORDER BY id DESC LIMIT 20";
 $articleStmt = $pdo->prepare($articleSql);
@@ -343,6 +397,12 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Controls max articles auto-generated per RSS fetch.</small>
+                    <form method="post" class="mt-3">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <button name="generate_demo_pack" value="1" class="btn btn-outline-info w-100">
+                            <i class="bi bi-stars"></i> Generate Demo Content Pack
+                        </button>
+                    </form>
                 </div>
             </div>
 
@@ -376,6 +436,10 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                     <i class="bi bi-arrow-repeat"></i> Fetch New Titles from RSS & Generate
                 </button>
             </form>
+            <div class="d-flex gap-2 mb-3">
+                <a href="admin.php?export=articles_json" class="btn btn-outline-light w-100"><i class="bi bi-filetype-json"></i> Export JSON</a>
+                <a href="admin.php?export=articles_csv" class="btn btn-outline-light w-100"><i class="bi bi-filetype-csv"></i> Export CSV</a>
+            </div>
 
             <div class="card section-card mb-3">
                 <div class="card-body">
@@ -383,22 +447,29 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                         <h5 class="mb-0">Recent Articles</h5>
                         <form method="get" class="d-flex gap-2">
                             <input type="text" name="qa" class="form-control form-control-sm" placeholder="Search title" value="<?= e($articleSearch) ?>">
-                            <button class="btn btn-sm btn-outline-light">Search</button>
+                            <select name="cat" class="form-select form-select-sm">
+                                <option value="">All categories</option>
+                                <?php foreach ($categoryOptions as $cat): ?>
+                                    <option value="<?= e($cat) ?>" <?= $articleCategory === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button class="btn btn-sm btn-outline-light">Filter</button>
                         </form>
                     </div>
 
                     <div class="table-responsive rounded shadow-sm">
                         <table class="table table-dark table-striped align-middle mb-0">
                             <thead>
-                            <tr><th>Title</th><th>Date</th><th>Action</th></tr>
+                            <tr><th>Title</th><th>Category</th><th>Date</th><th>Action</th></tr>
                             </thead>
                             <tbody>
                             <?php if (!$articles): ?>
-                                <tr><td colspan="3" class="text-center text-secondary">No articles found.</td></tr>
+                                <tr><td colspan="4" class="text-center text-secondary">No articles found.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($articles as $row): ?>
                                     <tr>
                                         <td><?= e($row['title']) ?></td>
+                                        <td><span class="badge text-bg-secondary"><?= e($row['category'] ?: 'General') ?></span></td>
                                         <td><?= e($row['published_at']) ?></td>
                                         <td class="d-flex gap-2">
                                             <a href="index.php?slug=<?= e($row['slug']) ?>" target="_blank" class="btn btn-sm btn-info">View</a>
