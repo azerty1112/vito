@@ -155,8 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($titles as $title) {
             if (!articleExists($title)) {
                 $data = generateArticle($title);
-                saveArticle($title, $data);
-                $generated++;
+                if (saveArticle($title, $data)) {
+                    $generated++;
+                }
             }
         }
 
@@ -178,8 +179,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($demoTitles as $title) {
             if (!articleExists($title)) {
                 $data = generateArticle($title);
-                saveArticle($title, $data);
-                $generated++;
+                if (saveArticle($title, $data)) {
+                    $generated++;
+                }
             }
         }
 
@@ -201,8 +203,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $title = trim((string)$item->title);
                     if ($title && !articleExists($title) && $count < $limit) {
                         $data = generateArticle($title);
-                        saveArticle($title, $data);
-                        $count++;
+                        if (saveArticle($title, $data)) {
+                            $count++;
+                        }
                     }
                 }
             }
@@ -219,15 +222,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['add_rss'])) {
-        $url = trim($_POST['rss_url'] ?? '');
-        if (filter_var($url, FILTER_VALIDATE_URL)) {
-            $stmt = $pdo->prepare("INSERT OR IGNORE INTO rss_sources (url) VALUES (?)");
+        $singleUrl = trim($_POST['rss_url'] ?? '');
+        $bulkInput = trim($_POST['rss_urls'] ?? '');
+        $bulkUrls = $bulkInput === '' ? [] : preg_split('/\r\n|\r|\n/', $bulkInput);
+
+        $rawUrls = [];
+        if ($singleUrl !== '') {
+            $rawUrls[] = $singleUrl;
+        }
+        foreach ($bulkUrls as $rawUrl) {
+            $rawUrl = trim((string)$rawUrl);
+            if ($rawUrl !== '') {
+                $rawUrls[] = $rawUrl;
+            }
+        }
+
+        $rawUrls = array_values(array_unique($rawUrls));
+        if (!$rawUrls) {
+            $_SESSION['flash_message'] = 'Please enter at least one RSS/XML URL.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $inserted = 0;
+        $invalid = 0;
+        $stmt = $pdo->prepare("INSERT OR IGNORE INTO rss_sources (url) VALUES (?)");
+        foreach ($rawUrls as $url) {
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                $invalid++;
+                continue;
+            }
+
             $stmt->execute([$url]);
-            $_SESSION['flash_message'] = 'RSS source added.';
+            if ($stmt->rowCount() > 0) {
+                $inserted++;
+            }
+        }
+
+        $ignored = count($rawUrls) - $inserted - $invalid;
+        if ($inserted > 0) {
+            $_SESSION['flash_message'] = "Added {$inserted} RSS source(s)."
+                . ($ignored > 0 ? " {$ignored} duplicate(s) skipped." : '')
+                . ($invalid > 0 ? " {$invalid} invalid link(s) skipped." : '');
             $_SESSION['flash_type'] = 'success';
         } else {
-            $_SESSION['flash_message'] = 'Invalid RSS URL.';
-            $_SESSION['flash_type'] = 'danger';
+            $_SESSION['flash_message'] = $invalid > 0
+                ? "No RSS source was added. {$invalid} invalid link(s) detected."
+                : 'No RSS source was added (all links already exist).';
+            $_SESSION['flash_type'] = 'warning';
         }
 
         header('Location: admin.php');
@@ -489,8 +532,10 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                     <h5><i class="bi bi-rss"></i> Add RSS Source</h5>
                     <form method="post">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                        <input type="url" name="rss_url" class="form-control" placeholder="https://example.com/feed.xml" required>
-                        <button name="add_rss" class="btn btn-outline-light mt-3 w-100">Save Source</button>
+                        <input type="url" name="rss_url" class="form-control" placeholder="https://example.com/feed.xml">
+                        <textarea name="rss_urls" class="form-control mt-2" rows="5" placeholder="Paste multiple RSS/XML links (one per line)"></textarea>
+                        <small class="text-secondary d-block mt-2">You can add a single URL above or paste a full XML links list.</small>
+                        <button name="add_rss" class="btn btn-outline-light mt-3 w-100">Save Source(s)</button>
                     </form>
                 </div>
             </div>
