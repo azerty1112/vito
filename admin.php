@@ -290,6 +290,7 @@ $dailyLimit = (int)getSetting('daily_limit', 5);
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
 $autoPublishInterval = getAutoPublishIntervalSeconds();
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
+$cronUrl = getCronEndpointUrl();
 $categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 $articleSql = "SELECT id, title, slug, category, published_at FROM articles";
@@ -450,6 +451,12 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary d-block mt-2">Set to 10 seconds for a fast demo. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <div class="alert alert-secondary mt-3 mb-2">
+                        <div class="small text-uppercase text-muted mb-1">Hosting Cron URL</div>
+                        <code class="d-block text-break"><?= e($cronUrl) ?></code>
+                        <small class="text-secondary d-block mt-2">Set your hosting cron job to call this URL every 10 seconds (or the smallest interval your provider allows).</small>
+                        <small class="text-secondary d-block">No token required. This URL supports HTTPS proxy headers and subfolder deployments automatically.</small>
+                    </div>
                     <form method="post" class="mt-2">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <button name="auto_generate_now" value="1" class="btn btn-outline-success w-100">
