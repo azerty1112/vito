@@ -25,6 +25,11 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS articles (
 )");
 $pdo->exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
 $pdo->exec("CREATE TABLE IF NOT EXISTS rss_sources (id INTEGER PRIMARY KEY, url TEXT)");
+$pdo->exec("CREATE TABLE IF NOT EXISTS web_sources (id INTEGER PRIMARY KEY, url TEXT)");
+$pdo->exec("DELETE FROM rss_sources WHERE id NOT IN (SELECT MIN(id) FROM rss_sources GROUP BY url)");
+$pdo->exec("DELETE FROM web_sources WHERE id NOT IN (SELECT MIN(id) FROM web_sources GROUP BY url)");
+$pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rss_sources_url ON rss_sources(url)");
+$pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_web_sources_url ON web_sources(url)");
 
 // إعدادات افتراضية
 $defaults = [
@@ -34,7 +39,8 @@ $defaults = [
     'auto_ai_enabled' => '1',
     'auto_publish_interval_minutes' => '180',
     'auto_publish_interval_seconds' => '10800',
-    'auto_publish_last_run_at' => '1970-01-01 00:00:00'
+    'auto_publish_last_run_at' => '1970-01-01 00:00:00',
+    'content_workflow' => 'rss'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);
@@ -48,5 +54,15 @@ $rss_defaults = [
 ];
 foreach ($rss_defaults as $url) {
     $pdo->prepare("INSERT OR IGNORE INTO rss_sources (url) VALUES (?)")->execute([$url]);
+}
+
+
+$web_defaults = [
+    'https://www.caranddriver.com/news/',
+    'https://www.motor1.com/news/',
+    'https://www.autoblog.com/news/'
+];
+foreach ($web_defaults as $url) {
+    $pdo->prepare("INSERT OR IGNORE INTO web_sources (url) VALUES (?)")->execute([$url]);
 }
 ?>

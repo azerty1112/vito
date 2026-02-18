@@ -7,13 +7,21 @@ Simple PHP automotive blog generator with:
 - Pagination on public article list.
 - Single article view with related posts and estimated reading time.
 - Admin panel for manual and fully automatic AI article generation (auto title + scheduled publishing).
-- RSS fetch automation using configurable `daily_limit`.
+- RSS workflow automation using configurable `daily_limit` with Symfony DomCrawler + CSS Selector feed parsing (RSS/Atom).
+- Normal websites workflow using Symfony DomCrawler + CSS selectors to extract article titles from regular news pages.
+- Workflow selector (`rss` or `web`) used by both admin manual run and `cron.php`.
 - RSS source management (add/remove).
 - Article management (view/delete).
 - CSRF protection for admin actions.
 - JSON API for public articles and site stats (`api.php`).
 
 ## Quick start
+
+Install PHP dependencies (required for Symfony feed crawling):
+
+```bash
+composer install
+```
 
 ```bash
 php -S 0.0.0.0:8000
@@ -45,6 +53,8 @@ curl "http://localhost:8000/api.php?endpoint=article&slug=your-article-slug"
 Supported query params for `api.php` (articles endpoint): `q`, `category`, `published_from`, `published_to`, `sort` (`newest`, `oldest`, `title_asc`, `title_desc`, `relevance`), `page`, `per_page`.
 
 ### Automatic AI publishing
+
+From `admin.php`, you can also choose the active **Content Workflow** (`RSS Workflow` or `Normal Sites Workflow`). The same selected workflow is executed when you click run manually and when `cron.php` is called.
 
 From `admin.php`, you can enable **AI Auto Publish Scheduler** to:
 

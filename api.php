@@ -10,12 +10,15 @@ $endpoint = $_GET['endpoint'] ?? 'articles';
 if ($endpoint === 'stats') {
     $totalArticles = (int)$pdo->query("SELECT COUNT(*) FROM articles")->fetchColumn();
     $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
+    $totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
     $latestPublish = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 
     echo json_encode([
         'site' => SITE_TITLE,
         'total_articles' => $totalArticles,
         'total_rss_sources' => $totalSources,
+        'total_web_sources' => $totalWebSources,
+        'selected_content_workflow' => getSelectedContentWorkflow(),
         'latest_publish' => $latestPublish,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     exit;

@@ -1,0 +1,15 @@
+{
+    "name": "vito/app",
+    "description": "Simple PHP automotive blog generator",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Codex",
+            "email": "codex@openai.com"
+        }
+    ],
+    "require": {
+        "symfony/dom-crawler": "^7.2",
+        "symfony/css-selector": "^7.2"
+    }
+}

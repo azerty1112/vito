@@ -1,6 +1,11 @@
 <?php
 require_once 'config.php';
 
+$composerAutoload = __DIR__ . '/vendor/autoload.php';
+if (is_file($composerAutoload)) {
+    require_once $composerAutoload;
+}
+
 function slugify($text) {
     $text = strtolower(trim($text));
     $text = preg_replace('/[^a-z0-9]+/', '-', $text);
@@ -9,6 +14,284 @@ function slugify($text) {
 
 function e($text) {
     return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
+}
+
+function fetchUrlBody($url, $timeoutSeconds = 10) {
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => max(1, (int)$timeoutSeconds),
+            'user_agent' => 'vito-rss-fetcher/1.0',
+        ],
+        'ssl' => [
+            'verify_peer' => true,
+            'verify_peer_name' => true,
+        ],
+    ]);
+
+    $body = @file_get_contents($url, false, $context);
+    return is_string($body) ? $body : null;
+}
+
+function extractFeedTitlesWithSymfonyCrawler($xmlString, $limit = 50) {
+    if (!class_exists('Symfony\\Component\\DomCrawler\\Crawler')) {
+        return [];
+    }
+
+    $limit = max(1, (int)$limit);
+    $crawler = new Symfony\Component\DomCrawler\Crawler();
+
+    try {
+        $crawler->addXmlContent($xmlString, 'UTF-8');
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $selectors = [
+        'channel > item > title',
+        'feed > entry > title',
+        'rdf\:RDF > item > title',
+        'item > title',
+        'entry > title',
+    ];
+
+    $titles = [];
+    foreach ($selectors as $selector) {
+        $nodes = $crawler->filter($selector);
+        if ($nodes->count() === 0) {
+            continue;
+        }
+
+        foreach ($nodes as $node) {
+            $title = trim((string)$node->textContent);
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+            if (count($titles) >= $limit) {
+                break 2;
+            }
+        }
+    }
+
+    return array_values(array_unique($titles));
+}
+
+function extractFeedTitlesWithSimpleXml($xmlString, $limit = 50) {
+    $limit = max(1, (int)$limit);
+    $xml = @simplexml_load_string($xmlString);
+    if (!$xml) {
+        return [];
+    }
+
+    $titles = [];
+
+    if (isset($xml->channel->item)) {
+        foreach ($xml->channel->item as $item) {
+            $title = trim((string)$item->title);
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+            if (count($titles) >= $limit) {
+                break;
+            }
+        }
+    }
+
+    if (count($titles) < $limit && isset($xml->entry)) {
+        foreach ($xml->entry as $entry) {
+            $title = trim((string)$entry->title);
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+            if (count($titles) >= $limit) {
+                break;
+            }
+        }
+    }
+
+    return array_values(array_unique($titles));
+}
+
+function extractFeedTitles($url, $limit = 50) {
+    $xmlString = fetchUrlBody($url);
+    if (!is_string($xmlString) || trim($xmlString) === '') {
+        return [];
+    }
+
+    $titles = extractFeedTitlesWithSymfonyCrawler($xmlString, $limit);
+    if ($titles) {
+        return $titles;
+    }
+
+    return extractFeedTitlesWithSimpleXml($xmlString, $limit);
+}
+
+
+function extractTitlesFromNormalPageWithSymfonyCrawler($htmlString, $limit = 50) {
+    if (!class_exists('Symfony\Component\DomCrawler\Crawler')) {
+        return [];
+    }
+
+    $limit = max(1, (int)$limit);
+    $crawler = new Symfony\Component\DomCrawler\Crawler();
+
+    try {
+        $crawler->addHtmlContent($htmlString, 'UTF-8');
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $selectors = [
+        'article h1 a, article h2 a, article h3 a',
+        'main h1 a, main h2 a, main h3 a',
+        '.post-title a, .entry-title a',
+        'h1 a, h2 a, h3 a',
+    ];
+
+    $titles = [];
+    foreach ($selectors as $selector) {
+        $nodes = $crawler->filter($selector);
+        if ($nodes->count() === 0) {
+            continue;
+        }
+
+        foreach ($nodes as $node) {
+            $title = trim((string)$node->textContent);
+            if ($title !== '' && mb_strlen($title) >= 5) {
+                $titles[] = $title;
+            }
+            if (count($titles) >= $limit) {
+                break 2;
+            }
+        }
+    }
+
+    if (!$titles) {
+        foreach ($crawler->filter('title') as $titleNode) {
+            $title = trim((string)$titleNode->textContent);
+            if ($title !== '' && mb_strlen($title) >= 5) {
+                $titles[] = $title;
+            }
+            if (count($titles) >= $limit) {
+                break;
+            }
+        }
+    }
+
+    return array_values(array_unique($titles));
+}
+
+function extractTitlesFromNormalPage($url, $limit = 50) {
+    $htmlString = fetchUrlBody($url);
+    if (!is_string($htmlString) || trim($htmlString) === '') {
+        return [];
+    }
+
+    return extractTitlesFromNormalPageWithSymfonyCrawler($htmlString, $limit);
+}
+
+function getSelectedContentWorkflow() {
+    $allowed = ['rss', 'web'];
+    $workflow = trim((string)getSetting('content_workflow', 'rss'));
+    return in_array($workflow, $allowed, true) ? $workflow : 'rss';
+}
+
+function runRssWorkflow($limit = null) {
+    $pdo = db_connect();
+    $sources = $pdo->query("SELECT url FROM rss_sources ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
+    $limit = $limit === null ? max(1, (int)getSetting('daily_limit', 5)) : max(1, (int)$limit);
+
+    $count = 0;
+    $sourceStats = [];
+
+    foreach ($sources as $url) {
+        if ($count >= $limit) {
+            break;
+        }
+
+        $titles = extractFeedTitles($url, max(10, $limit * 3));
+        $publishedFromSource = 0;
+
+        foreach ($titles as $title) {
+            if ($count >= $limit) {
+                break;
+            }
+
+            if ($title !== '' && !articleExists($title)) {
+                $data = generateArticle($title);
+                if (saveArticle($title, $data)) {
+                    $count++;
+                    $publishedFromSource++;
+                }
+            }
+        }
+
+        $sourceStats[] = [
+            'url' => $url,
+            'fetched_titles' => count($titles),
+            'published' => $publishedFromSource,
+        ];
+    }
+
+    return [
+        'workflow' => 'rss',
+        'sources_count' => count($sources),
+        'published' => $count,
+        'stats' => $sourceStats,
+    ];
+}
+
+function runWebWorkflow($limit = null) {
+    $pdo = db_connect();
+    $sources = $pdo->query("SELECT url FROM web_sources ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
+    $limit = $limit === null ? max(1, (int)getSetting('daily_limit', 5)) : max(1, (int)$limit);
+
+    $count = 0;
+    $sourceStats = [];
+
+    foreach ($sources as $url) {
+        if ($count >= $limit) {
+            break;
+        }
+
+        $titles = extractTitlesFromNormalPage($url, max(10, $limit * 3));
+        $publishedFromSource = 0;
+
+        foreach ($titles as $title) {
+            if ($count >= $limit) {
+                break;
+            }
+
+            if ($title !== '' && !articleExists($title)) {
+                $data = generateArticle($title);
+                if (saveArticle($title, $data)) {
+                    $count++;
+                    $publishedFromSource++;
+                }
+            }
+        }
+
+        $sourceStats[] = [
+            'url' => $url,
+            'fetched_titles' => count($titles),
+            'published' => $publishedFromSource,
+        ];
+    }
+
+    return [
+        'workflow' => 'web',
+        'sources_count' => count($sources),
+        'published' => $count,
+        'stats' => $sourceStats,
+    ];
+}
+
+function runSelectedContentWorkflow($limit = null) {
+    $selected = getSelectedContentWorkflow();
+    if ($selected === 'web') {
+        return runWebWorkflow($limit);
+    }
+
+    return runRssWorkflow($limit);
 }
 
 
