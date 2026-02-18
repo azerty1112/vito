@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newLimit = (int)($_POST['daily_limit'] ?? 5);
         $newLimit = max(1, min(50, $newLimit));
         setSetting('daily_limit', (string)$newLimit);
-        $_SESSION['flash_message'] = 'Daily RSS generation limit updated.';
+        $_SESSION['flash_message'] = 'Daily workflow generation limit updated.';
         $_SESSION['flash_type'] = 'success';
         header('Location: admin.php');
         exit;
@@ -191,31 +191,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if (isset($_POST['fetch_rss'])) {
-        $sources = $pdo->query("SELECT url FROM rss_sources ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
-        $count = 0;
-        $limit = max(1, (int)getSetting('daily_limit', 5));
+    if (isset($_POST['run_content_workflow'])) {
+        $result = runSelectedContentWorkflow();
+        $workflowName = ($result['workflow'] ?? 'rss') === 'web' ? 'Normal Sites' : 'RSS';
+        $published = (int)($result['published'] ?? 0);
+        $sourcesCount = (int)($result['sources_count'] ?? 0);
 
-        foreach ($sources as $url) {
-            $xml = @simplexml_load_file($url);
-            if ($xml && isset($xml->channel->item)) {
-                foreach ($xml->channel->item as $item) {
-                    $title = trim((string)$item->title);
-                    if ($title && !articleExists($title) && $count < $limit) {
-                        $data = generateArticle($title);
-                        if (saveArticle($title, $data)) {
-                            $count++;
-                        }
-                    }
-                }
-            }
-
-            if ($count >= $limit) {
-                break;
-            }
-        }
-
-        $_SESSION['flash_message'] = "Fetched and published {$count} new article(s).";
+        $_SESSION['flash_message'] = "Workflow {$workflowName}: published {$published} new article(s) from {$sourcesCount} source(s).";
         $_SESSION['flash_type'] = 'info';
         header('Location: admin.php');
         exit;
@@ -277,6 +259,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+
+    if (isset($_POST['update_content_workflow'])) {
+        $workflow = trim((string)($_POST['content_workflow'] ?? 'rss'));
+        if (!in_array($workflow, ['rss', 'web'], true)) {
+            $workflow = 'rss';
+        }
+
+        setSetting('content_workflow', $workflow);
+        $_SESSION['flash_message'] = 'Content workflow updated.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['add_web'])) {
+        $singleUrl = trim($_POST['web_url'] ?? '');
+        $bulkInput = trim($_POST['web_urls'] ?? '');
+        $bulkUrls = $bulkInput === '' ? [] : preg_split('/\r\n|\r|\n/', $bulkInput);
+
+        $rawUrls = [];
+        if ($singleUrl !== '') {
+            $rawUrls[] = $singleUrl;
+        }
+        foreach ($bulkUrls as $rawUrl) {
+            $rawUrl = trim((string)$rawUrl);
+            if ($rawUrl !== '') {
+                $rawUrls[] = $rawUrl;
+            }
+        }
+
+        $rawUrls = array_values(array_unique($rawUrls));
+        if (!$rawUrls) {
+            $_SESSION['flash_message'] = 'Please enter at least one normal website URL.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $inserted = 0;
+        $invalid = 0;
+        $stmt = $pdo->prepare("INSERT OR IGNORE INTO web_sources (url) VALUES (?)");
+        foreach ($rawUrls as $url) {
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                $invalid++;
+                continue;
+            }
+
+            $stmt->execute([$url]);
+            if ($stmt->rowCount() > 0) {
+                $inserted++;
+            }
+        }
+
+        $ignored = count($rawUrls) - $inserted - $invalid;
+        if ($inserted > 0) {
+            $_SESSION['flash_message'] = "Added {$inserted} normal website source(s)."
+                . ($ignored > 0 ? " {$ignored} duplicate(s) skipped." : '')
+                . ($invalid > 0 ? " {$invalid} invalid link(s) skipped." : '');
+            $_SESSION['flash_type'] = 'success';
+        } else {
+            $_SESSION['flash_message'] = $invalid > 0
+                ? "No normal website source was added. {$invalid} invalid link(s) detected."
+                : 'No normal website source was added (all links already exist).';
+            $_SESSION['flash_type'] = 'warning';
+        }
+
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['delete_web'])) {
+        $stmt = $pdo->prepare("DELETE FROM web_sources WHERE id = ?");
+        $stmt->execute([(int)$_POST['delete_web']]);
+        $_SESSION['flash_message'] = 'Normal website source removed.';
+        $_SESSION['flash_type'] = 'warning';
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['delete_article'])) {
         $stmt = $pdo->prepare("DELETE FROM articles WHERE id = ?");
         $stmt->execute([(int)$_POST['delete_article']]);
@@ -303,6 +364,7 @@ $_SESSION['flash_type'] = 'info';
 
 $articleSearch = trim($_GET['qa'] ?? '');
 $rssSearch = trim($_GET['qr'] ?? '');
+$webSearch = trim($_GET['qw'] ?? '');
 $articleCategory = trim($_GET['cat'] ?? '');
 
 if (isset($_GET['export']) && $_GET['export'] === 'articles_json') {
@@ -328,8 +390,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'articles_csv') {
 
 $totalArticles = (int)$pdo->query("SELECT COUNT(*) FROM articles")->fetchColumn();
 $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
+$totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
+$selectedWorkflow = getSelectedContentWorkflow();
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
 $autoPublishInterval = getAutoPublishIntervalSeconds();
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
@@ -371,6 +435,20 @@ foreach ($rssParams as $key => $value) {
 }
 $rssStmt->execute();
 $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$webSql = "SELECT id, url FROM web_sources";
+$webParams = [];
+if ($webSearch !== '') {
+    $webSql .= " WHERE url LIKE :url";
+    $webParams['url'] = '%' . $webSearch . '%';
+}
+$webSql .= " ORDER BY id DESC";
+$webStmt = $pdo->prepare($webSql);
+foreach ($webParams as $key => $value) {
+    $webStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
+$webStmt->execute();
+$webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -408,7 +486,7 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
         <div>
             <h1 class="mb-1"><i class="bi bi-speedometer2"></i> <?= e(SITE_TITLE) ?> Control Panel</h1>
-            <p class="text-secondary mb-0">Manage article generation, RSS sources, and publishing workflow.</p>
+            <p class="text-secondary mb-0">Manage article generation, RSS/normal sources, and publishing workflow.</p>
         </div>
         <div class="d-flex gap-2">
             <a href="index.php" class="btn btn-outline-light" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Public Site</a>
@@ -435,8 +513,8 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="col-sm-6 col-lg-3">
             <div class="card section-card stat-card h-100">
                 <div class="card-body">
-                    <small class="text-light-emphasis">RSS Sources</small>
-                    <h3><?= $totalSources ?></h3>
+                    <small class="text-light-emphasis">RSS / Web Sources</small>
+                    <h3><?= $totalSources ?> / <?= $totalWebSources ?></h3>
                 </div>
             </div>
         </div>
@@ -466,14 +544,29 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-8">
-                            <label class="form-label">Daily RSS Limit</label>
+                            <label class="form-label">Daily Workflow Limit</label>
                             <input type="number" name="daily_limit" class="form-control" min="1" max="50" value="<?= $dailyLimit ?>">
                         </div>
                         <div class="col-4">
                             <button name="update_daily_limit" value="1" class="btn btn-outline-light w-100">Save</button>
                         </div>
                     </form>
-                    <small class="text-secondary">Controls max articles auto-generated per RSS fetch.</small>
+                    <small class="text-secondary">Controls max articles generated per selected workflow run.</small>
+
+                    <form method="post" class="row g-2 align-items-end mt-1">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-8">
+                            <label class="form-label">Selected Content Workflow</label>
+                            <select name="content_workflow" class="form-select">
+                                <option value="rss" <?= $selectedWorkflow === 'rss' ? 'selected' : '' ?>>RSS Workflow</option>
+                                <option value="web" <?= $selectedWorkflow === 'web' ? 'selected' : '' ?>>Normal Sites Workflow (Symfony DomCrawler)</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <button name="update_content_workflow" value="1" class="btn btn-outline-light w-100">Apply</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary">Cron and manual run will execute the selected workflow only.</small>
 
                     <hr class="border-secondary-subtle my-3">
                     <h6><i class="bi bi-robot"></i> AI Auto Publish Scheduler</h6>
@@ -539,13 +632,26 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                     </form>
                 </div>
             </div>
+
+            <div class="card section-card mt-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-globe2"></i> Add Normal Website Source</h5>
+                    <form method="post">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <input type="url" name="web_url" class="form-control" placeholder="https://example.com/news/">
+                        <textarea name="web_urls" class="form-control mt-2" rows="5" placeholder="Paste multiple normal website links (one per line)"></textarea>
+                        <small class="text-secondary d-block mt-2">Used by Normal Sites workflow with Symfony DomCrawler + CSS selectors.</small>
+                        <button name="add_web" class="btn btn-outline-light mt-3 w-100">Save Website Source(s)</button>
+                    </form>
+                </div>
+            </div>
         </div>
 
         <div class="col-xl-8">
             <form method="post" class="mb-3">
                 <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                <button name="fetch_rss" value="1" class="btn btn-primary btn-lg w-100">
-                    <i class="bi bi-arrow-repeat"></i> Fetch New Titles from RSS & Generate
+                <button name="run_content_workflow" value="1" class="btn btn-primary btn-lg w-100">
+                    <i class="bi bi-arrow-repeat"></i> Run Selected Content Workflow & Generate
                 </button>
             </form>
             <div class="d-flex gap-2 mb-3">
@@ -619,6 +725,34 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                                     <form method="post" onsubmit="return confirm('Remove this source?')">
                                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                                         <button name="delete_rss" value="<?= (int)$rss['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
+                                    </form>
+                                </li>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card section-card mt-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Normal Website Sources</h5>
+                        <form method="get" class="d-flex gap-2">
+                            <input type="text" name="qw" class="form-control form-control-sm" placeholder="Search URL" value="<?= e($webSearch) ?>">
+                            <button class="btn btn-sm btn-outline-light">Search</button>
+                        </form>
+                    </div>
+
+                    <ul class="list-group shadow-sm">
+                        <?php if (!$webRows): ?>
+                            <li class="list-group-item text-center text-secondary">No normal website sources found.</li>
+                        <?php else: ?>
+                            <?php foreach ($webRows as $web): ?>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="text-break pe-2"><?= e($web['url']) ?></span>
+                                    <form method="post" onsubmit="return confirm('Remove this source?')">
+                                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                        <button name="delete_web" value="<?= (int)$web['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
                                     </form>
                                 </li>
                             <?php endforeach; ?>

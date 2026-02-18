@@ -15,12 +15,17 @@ if (PHP_SAPI !== 'cli') {
     }
 }
 
-$result = publishAutoArticleBySchedule();
+$contentWorkflow = runSelectedContentWorkflow();
+$selectedWorkflow = getSelectedContentWorkflow();
+
+$schedulerResult = publishAutoArticleBySchedule();
 $meta = getAutoPublishSchedulerMeta();
 
 echo json_encode([
     'ok' => true,
     'timestamp' => date('c'),
-    'scheduler' => $result,
+    'selected_content_workflow' => $selectedWorkflow,
+    'content_workflow_result' => $contentWorkflow,
+    'scheduler' => $schedulerResult,
     'meta' => $meta,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
