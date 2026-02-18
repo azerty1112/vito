@@ -54,7 +54,21 @@ From `admin.php`, you can enable **AI Auto Publish Scheduler** to:
 
 Note: scheduler runs when site endpoints are visited (`index.php`, `api.php`, `admin.php`) or when clicking **Generate Title + Publish Now** in admin.
 
-For a quick demo, set **Publish Every (seconds)** to `10` from the admin panel.
+For production, use your hosting Cron Job to call:
+
+```
+https://your-domain.com/cron.php
+```
+
+You can copy the full URL directly from the admin panel (**AI Auto Publish Scheduler** section). No token is required. The generated URL supports HTTPS behind proxy and subfolder installs.
+
+For a quick demo, set **Publish Every (seconds)** to `10` and call `cron.php` every 10 seconds from your hosting cron/external cron service.
+
+You can also run it from server CLI:
+
+```bash
+php cron.php
+```
 
 
 ### Better article quality

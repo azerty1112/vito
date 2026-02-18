@@ -54,6 +54,44 @@ function getAutoPublishIntervalSeconds() {
     return 10800;
 }
 
+
+function getCurrentBaseUrl() {
+    $forwardedProto = trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    $isHttps = $forwardedProto !== ''
+        ? strtolower($forwardedProto) === 'https'
+        : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ((int)($_SERVER['SERVER_PORT'] ?? 80) === 443));
+
+    $scheme = $isHttps ? 'https' : 'http';
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+
+    $scriptName = trim((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    $basePath = str_replace('\\', '/', dirname($scriptName));
+    if ($basePath === '.' || $basePath === '/') {
+        $basePath = '';
+    }
+    $basePath = rtrim($basePath, '/');
+
+    return $scheme . '://' . $host . $basePath;
+}
+
+function getCronEndpointUrl() {
+    return getCurrentBaseUrl() . '/cron.php';
+}
+
+function getAutoPublishSchedulerMeta() {
+    $lastRun = strtotime((string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00')) ?: 0;
+    $interval = getAutoPublishIntervalSeconds();
+    $nextRun = $lastRun + $interval;
+    $remaining = max(0, $nextRun - time());
+
+    return [
+        'interval_seconds' => $interval,
+        'last_run_at' => date('Y-m-d H:i:s', $lastRun),
+        'next_run_at' => date('Y-m-d H:i:s', $nextRun),
+        'remaining_seconds' => $remaining,
+    ];
+}
+
 function classifyVehicleProfile($title) {
     $titleLower = mb_strtolower($title, 'UTF-8');
     $map = [
