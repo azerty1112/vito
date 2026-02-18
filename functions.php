@@ -19,7 +19,6 @@ function getSetting($key, $default = null) {
     return $value !== false ? $value : $default;
 }
 
-
 function setSetting($key, $value) {
     $pdo = db_connect();
     $stmt = $pdo->prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
@@ -66,39 +65,179 @@ function verifyAdminPassword($password) {
 
 function getRandomIntro($title) {
     $intros = [
-        "The $title is making waves in the automotive world with its bold design and cutting-edge technology.",
-        "If you're looking for the perfect blend of performance and luxury, the $title delivers on every level.",
-        "The $title enters the market with a fresh identity, smarter features, and stronger road presence.",
-        "Drivers interested in comfort and power will find the $title an impressive all-around package."
+        "The $title arrives at a time when buyers expect more than raw performance—they expect intelligence, consistency, and real ownership value.",
+        "The $title reflects a modern automotive philosophy where design, software, efficiency, and durability must all work together.",
+        "With the $title, the brand is clearly targeting drivers who care about emotional appeal and practical decision-making in equal measure.",
+        "The $title enters a competitive segment, and its real strength is how it balances premium character with day-to-day usability."
     ];
+
     return $intros[array_rand($intros)];
 }
 
+function pickRandomFrom(array $items) {
+    return $items[array_rand($items)];
+}
+
+function buildAnalyticalParagraph($title, $sectionTitle, $focus, $isEV, $perspective) {
+    $energyContext = $isEV
+        ? 'its electric architecture, battery management logic, and charging ecosystem'
+        : 'its engine calibration, transmission strategy, and thermal durability';
+
+    $openingBank = [
+        "In the context of {$sectionTitle}, the {$title} deserves attention for {$focus}.",
+        "Looking at {$sectionTitle} through a practical lens, {$focus} becomes one of the most relevant points for {$title}.",
+        "When analysts evaluate {$sectionTitle}, they usually start with {$focus}, and the {$title} performs in a convincing way."
+    ];
+
+    $analysisBank = [
+        "The most credible part of this story is not a single headline figure, but the consistency of behavior across daily scenarios like traffic, highway cruising, and weekend travel.",
+        "What separates mature products from average ones is repeatability, and here the vehicle keeps a stable character even when road quality, weather, and load conditions change.",
+        "Instead of over-optimizing for lab-style results, the package appears tuned for real-world confidence where comfort, control, and predictability matter every day."
+    ];
+
+    $perspectiveBank = [
+        "From an owner perspective, this means fewer compromises between comfort and capability, and a lower chance of buyer regret after the first months of excitement.",
+        "For mixed-use drivers, this creates a meaningful advantage: the car feels refined in city conditions yet remains composed when pushed on open roads.",
+        "From a long-term standpoint, this balance supports stronger perceived quality because the driving experience remains coherent rather than fragmented."
+    ];
+
+    $closingBank = [
+        "That broader coherence is reinforced by {$energyContext}, which helps the {$title} translate engineering choices into tangible daily benefits.",
+        "The result is a clearer value proposition: the {$title} is not merely impressive on paper, it is understandable and rewarding in normal ownership use.",
+        "Ultimately, this is where product intelligence appears—different systems collaborate naturally instead of competing for attention."
+    ];
+
+    $paragraph = pickRandomFrom($openingBank) . ' '
+        . pickRandomFrom($analysisBank) . ' '
+        . pickRandomFrom($perspectiveBank) . ' '
+        . pickRandomFrom($closingBank);
+
+    if ($perspective !== '') {
+        $paragraph .= ' ' . $perspective;
+    }
+
+    return "<p>{$paragraph}</p>";
+}
+
+function buildSectionContent($title, $sectionTitle, array $focusPoints, $isEV) {
+    $perspectives = [
+        'This is especially important in segments where buyers compare six or seven alternatives before committing.',
+        'In competitive markets, small gains in usability often influence purchase decisions more than aggressive marketing claims.',
+        'For families and frequent commuters, these details can be more valuable than short-term novelty features.'
+    ];
+
+    $paragraphs = [];
+    foreach ($focusPoints as $index => $focus) {
+        $paragraphs[] = buildAnalyticalParagraph(
+            $title,
+            $sectionTitle,
+            $focus,
+            $isEV,
+            $perspectives[$index % count($perspectives)]
+        );
+    }
+
+    return $paragraphs;
+}
+
+function ensureMinimumWordCount($html, $title, $minimumWords = 2100) {
+    $expansionLibrary = [
+        "<p>Beyond specifications, the {$title} should be evaluated through lifecycle quality: software stability over updates, ease of service access, parts availability, and dealership competence. These factors rarely appear in launch headlines, but they shape ownership satisfaction in a decisive way. Buyers who prioritize this complete picture are usually the ones who feel most confident in their purchase years after delivery.</p>",
+        "<p>A final strategic angle concerns resale narrative. Vehicles that keep a clear identity, avoid over-complicated interfaces, and maintain predictable reliability tend to preserve value more effectively. The {$title} appears aligned with that principle by emphasizing balance rather than gimmicks, which is often the smarter long-term formula in a rapidly changing automotive market.</p>",
+        "<p>From a product-planning perspective, the {$title} also signals where the brand may be heading next: deeper integration between hardware and software, stronger efficiency discipline, and a clearer user-first philosophy. If this direction continues, future iterations could build on an already credible foundation while reducing the remaining trade-offs that naturally exist in every vehicle category.</p>"
+    ];
+
+    $currentWords = str_word_count(strip_tags($html));
+    $i = 0;
+    while ($currentWords < $minimumWords) {
+        $html .= "\n" . $expansionLibrary[$i % count($expansionLibrary)];
+        $currentWords = str_word_count(strip_tags($html));
+        $i++;
+    }
+
+    return $html;
+}
+
 function generateArticle($title) {
-    $model = preg_replace('/\b(202[0-9]|20[0-9]{2})\b/', '', $title);
+    $model = trim(preg_replace('/\b(202[0-9]|20[0-9]{2})\b/', '', $title));
     $isEV = stripos($title, 'EV') !== false || stripos($title, 'electric') !== false;
 
     $content = "<h1>" . htmlspecialchars($title) . "</h1>\n";
     $content .= "<p class='text-muted'>Published " . date('F j, Y') . " • AutoCar Niche</p>\n";
     $content .= "<img src='https://loremflickr.com/800/450/car," . urlencode(strtolower($model)) . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
-    $content .= "<p>" . getRandomIntro($title) . " This model redefines what drivers expect from a modern vehicle.</p>\n";
+    $content .= "<p>" . getRandomIntro($title) . " This review follows an editorial structure designed to deliver deep analysis, clear comparisons, and practical buying guidance.</p>\n";
 
-    $sections = ['Performance', 'Exterior Design', 'Interior Comfort', 'Technology', 'Safety Features'];
-    foreach ($sections as $sec) {
-        $paras = [
-            "In terms of $sec, the " . $title . " impresses with its responsive handling and powerful acceleration.",
-            "The advanced " . ($isEV ? "electric powertrain" : "engine") . " delivers exceptional efficiency and thrilling performance."
-        ];
-        $content .= "<h2>" . $sec . "</h2>\n<p>" . $paras[array_rand($paras)] . "</p>\n";
+    $sections = [
+        'Executive Summary and Market Position' => [
+            'segment fit and target audience clarity',
+            'how the model differentiates against direct rivals',
+            'the real value story behind headline marketing claims'
+        ],
+        'Exterior Design, Proportion, and Visual Character' => [
+            'surface treatment, stance, and brand identity execution',
+            'aerodynamic decisions that influence both style and efficiency',
+            'why design coherence affects owner satisfaction over time'
+        ],
+        'Cabin Quality, Space, and Human-Centered Ergonomics' => [
+            'seat comfort, posture support, and long-distance usability',
+            'dashboard hierarchy, physical controls, and interaction clarity',
+            'perceived quality through materials, fit, and acoustic control'
+        ],
+        'Powertrain Intelligence, Performance Delivery, and Efficiency' => [
+            'response quality under partial and full throttle situations',
+            'efficiency behavior in urban, mixed, and highway duty cycles',
+            'engineering trade-offs between excitement and sustainability'
+        ],
+        'Ride Comfort, Handling Balance, and Braking Confidence' => [
+            'suspension tuning over varied road surfaces',
+            'steering communication and directional stability at speed',
+            'predictable braking behavior in repeated real-world use'
+        ],
+        'Technology Stack, Infotainment, and Connectivity Experience' => [
+            'interface speed, readability, and cognitive simplicity',
+            'smartphone integration and navigation reliability in practice',
+            'software maturity, update path, and feature longevity'
+        ],
+        'Safety Systems, Driver Assistance, and Durability Outlook' => [
+            'calibration quality of active safety interventions',
+            'passive safety confidence and structural reassurance',
+            'maintenance predictability and long-term reliability perception'
+        ],
+        'Ownership Economics, Trim Strategy, and Buyer Recommendations' => [
+            'cost of ownership across fuel or charging, service, and insurance',
+            'which configuration levels provide the strongest value density',
+            'how to shortlist based on real priorities rather than hype'
+        ]
+    ];
+
+    foreach ($sections as $sectionTitle => $focusPoints) {
+        $content .= "<h2>{$sectionTitle}</h2>\n";
+        foreach (buildSectionContent($title, $sectionTitle, $focusPoints, $isEV) as $paragraph) {
+            $content .= $paragraph . "\n";
+        }
     }
 
-    $content .= "<h2>Key Specifications</h2>\n<table class='table table-bordered'><tr><th>Engine</th><td>" . ($isEV ? "Dual Electric Motors" : "2.5L Turbo") . "</td></tr><tr><th>Horsepower</th><td>" . rand(250, 650) . " hp</td></tr><tr><th>0-60 mph</th><td>" . rand(35, 65) / 10 . " seconds</td></tr></table>\n";
-    $content .= "<h2>Pros and Cons</h2>\n<ul><li><strong>Pros:</strong> Excellent build quality, modern tech, comfortable ride.</li><li><strong>Cons:</strong> Slightly higher price point, limited cargo in some trims.</li></ul>\n";
-    $content .= "<p class='mt-5'>In conclusion, the $title is a standout choice for car enthusiasts who demand both style and substance. Highly recommended!</p>";
+    $horsepower = rand(260, 640);
+    $zeroToSixty = number_format(rand(34, 67) / 10, 1);
+    $efficiencyLine = $isEV
+        ? rand(420, 680) . ' km estimated range (mixed use)'
+        : rand(6, 11) . ' L/100km combined estimate';
+    $drivetrain = $isEV ? 'Dual Electric Motors (AWD)' : '2.5L Turbo + Advanced Automatic Transmission';
+
+    $content .= "<h2>Technical Snapshot</h2>\n";
+    $content .= "<table class='table table-bordered'><tr><th>Powertrain</th><td>{$drivetrain}</td></tr><tr><th>Output</th><td>{$horsepower} hp</td></tr><tr><th>0-60 mph</th><td>{$zeroToSixty} seconds</td></tr><tr><th>Efficiency</th><td>{$efficiencyLine}</td></tr><tr><th>Editorial Category</th><td>Auto</td></tr></table>\n";
+
+    $content .= "<h2>Strengths and Trade-Offs</h2>\n";
+    $content .= "<ul><li><strong>Strengths:</strong> Cohesive engineering balance, strong day-to-day usability, mature technology integration, and a clear long-term value narrative.</li><li><strong>Trade-Offs:</strong> Higher entry price in premium trims, optional packages that may overlap in features, and availability pressure in high-demand regions.</li></ul>\n";
+
+    $content .= "<h2>Final Editorial Verdict</h2>\n";
+    $content .= "<p class='mt-3'>The {$title} succeeds because it behaves like a complete product, not a collection of isolated features. It combines emotional appeal with practical intelligence, and that combination is exactly what modern buyers need in an uncertain, fast-evolving market. If your priority is a vehicle that remains convincing beyond launch-week excitement, this model is a serious and well-justified candidate.</p>";
+
+    $content = ensureMinimumWordCount($content, $title, 2100);
 
     $plainText = trim(strip_tags($content));
-    $excerpt = mb_substr($plainText, 0, 200);
-    if (mb_strlen($plainText) > 200) {
+    $excerpt = mb_substr($plainText, 0, 340);
+    if (mb_strlen($plainText) > 340) {
         $excerpt .= '...';
     }
 
