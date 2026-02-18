@@ -33,6 +33,7 @@ $defaults = [
     'daily_limit' => '5',
     'auto_ai_enabled' => '1',
     'auto_publish_interval_minutes' => '180',
+    'auto_publish_interval_seconds' => '10800',
     'auto_publish_last_run_at' => '1970-01-01 00:00:00'
 ];
 foreach ($defaults as $k => $v) {

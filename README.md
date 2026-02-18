@@ -50,6 +50,18 @@ From `admin.php`, you can enable **AI Auto Publish Scheduler** to:
 
 - Generate a title automatically.
 - Generate the full article from that title without manual input.
-- Publish automatically every configured interval (minutes).
+- Publish automatically every configured interval (seconds).
 
 Note: scheduler runs when site endpoints are visited (`index.php`, `api.php`, `admin.php`) or when clicking **Generate Title + Publish Now** in admin.
+
+For a quick demo, set **Publish Every (seconds)** to `10` from the admin panel.
+
+
+### Better article quality
+
+Generated articles now include:
+- a quick executive takeaway,
+- a buyer persona section (who should buy),
+- an FAQ block,
+- and dynamic minimum word count based on the `min_words` setting.
+

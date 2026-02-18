@@ -38,6 +38,79 @@ function getSettingInt($key, $default = 0, $min = null, $max = null) {
     return $value;
 }
 
+
+function getAutoPublishIntervalSeconds() {
+    $secondsRaw = getSetting('auto_publish_interval_seconds', null);
+    if ($secondsRaw !== null && $secondsRaw !== '') {
+        return getSettingInt('auto_publish_interval_seconds', 10800, 10, 86400);
+    }
+
+    $minutesRaw = getSetting('auto_publish_interval_minutes', null);
+    if ($minutesRaw !== null && $minutesRaw !== '') {
+        $minutes = getSettingInt('auto_publish_interval_minutes', 180, 1, 1440);
+        return max(10, min(86400, $minutes * 60));
+    }
+
+    return 10800;
+}
+
+function classifyVehicleProfile($title) {
+    $titleLower = mb_strtolower($title, 'UTF-8');
+    $map = [
+        'SUV' => ['suv', 'crossover'],
+        'Sedan' => ['sedan', 'saloon'],
+        'Coupe' => ['coupe'],
+        'Hatchback' => ['hatch', 'hatchback'],
+        'Truck' => ['pickup', 'truck'],
+    ];
+
+    foreach ($map as $label => $keywords) {
+        foreach ($keywords as $keyword) {
+            if (mb_strpos($titleLower, $keyword) !== false) {
+                return $label;
+            }
+        }
+    }
+
+    return 'Vehicle';
+}
+
+function buildBuyerPersonaSection($title, $isEV, $bodyType) {
+    $useCase = $isEV ? 'daily charging rhythm, home charging access, and route planning confidence' : 'annual mileage, fuel cost sensitivity, and service-network convenience';
+    $personaA = "<li><strong>Urban Professional:</strong> Best if your priority is refinement, technology usability, and stress-free commuting in mixed traffic.</li>";
+    $personaB = "<li><strong>Family-Oriented Driver:</strong> Strong candidate when cabin practicality, comfort, and predictable ownership costs matter most.</li>";
+    $personaC = "<li><strong>Enthusiast Pragmatist:</strong> Suitable for buyers who want engaging performance without sacrificing real-world comfort and reliability.</li>";
+
+    return "<h2>Who Should Buy This {$bodyType}?</h2>
+"
+        . "<p>Before committing to the {$title}, align your decision with real usage patterns: {$useCase}. The strongest purchase decisions come from fit, not hype.</p>
+"
+        . "<ul>{$personaA}{$personaB}{$personaC}</ul>
+";
+}
+
+function buildFaqSection($title, $isEV) {
+    $runningCost = $isEV
+        ? 'In many markets, charging remains cheaper per kilometer than fuel, especially with home charging and off-peak tariffs.'
+        : 'Running costs depend on driving style and service intervals, but predictable maintenance plans can stabilize yearly expenses.';
+
+    $faq = [
+        ['Is the ' . $title . ' good for daily use?', 'Yes. Its strongest argument is consistency in comfort, usability, and technology behavior across routine driving scenarios.'],
+        ['How does it compare with rivals?', 'It competes best when buyers value balanced engineering and ownership confidence rather than headline numbers alone.'],
+        ['What about long-term cost?', $runningCost],
+    ];
+
+    $html = "<h2>Frequently Asked Questions</h2>
+";
+    foreach ($faq as [$q, $a]) {
+        $html .= "<h3>{$q}</h3>
+<p>{$a}</p>
+";
+    }
+
+    return $html;
+}
+
 function generateAutoTitle() {
     $year = (int)date('Y') + rand(0, 1);
     $brands = ['Toyota', 'BMW', 'Mercedes', 'Audi', 'Porsche', 'Tesla', 'Hyundai', 'Kia', 'Ford', 'Nissan'];
@@ -78,11 +151,11 @@ function publishAutoArticleBySchedule($force = false) {
         return ['published' => 0, 'reason' => 'disabled'];
     }
 
-    $intervalMinutes = getSettingInt('auto_publish_interval_minutes', 180, 1, 1440);
+    $intervalSeconds = getAutoPublishIntervalSeconds();
     $lastRun = strtotime((string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00')) ?: 0;
     $now = time();
 
-    if (!$force && ($now - $lastRun) < ($intervalMinutes * 60)) {
+    if (!$force && ($now - $lastRun) < $intervalSeconds) {
         return ['published' => 0, 'reason' => 'not_due'];
     }
 
@@ -248,11 +321,13 @@ function ensureMinimumWordCount($html, $title, $minimumWords = 2100) {
 function generateArticle($title) {
     $model = trim(preg_replace('/\b(202[0-9]|20[0-9]{2})\b/', '', $title));
     $isEV = stripos($title, 'EV') !== false || stripos($title, 'electric') !== false;
+    $bodyType = classifyVehicleProfile($title);
 
     $content = "<h1>" . htmlspecialchars($title) . "</h1>\n";
     $content .= "<p class='text-muted'>Published " . date('F j, Y') . " • AutoCar Niche</p>\n";
     $content .= "<img src='https://loremflickr.com/800/450/car," . urlencode(strtolower($model)) . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
     $content .= "<p>" . getRandomIntro($title) . " This review follows an editorial structure designed to deliver deep analysis, clear comparisons, and practical buying guidance.</p>\n";
+    $content .= "<p><strong>Quick Take:</strong> The {$title} is a {$bodyType}-class product focused on balanced performance, everyday usability, and ownership predictability rather than one-dimensional headline metrics.</p>\n";
 
     $sections = [
         'Executive Summary and Market Position' => [
@@ -314,13 +389,18 @@ function generateArticle($title) {
     $content .= "<h2>Technical Snapshot</h2>\n";
     $content .= "<table class='table table-bordered'><tr><th>Powertrain</th><td>{$drivetrain}</td></tr><tr><th>Output</th><td>{$horsepower} hp</td></tr><tr><th>0-60 mph</th><td>{$zeroToSixty} seconds</td></tr><tr><th>Efficiency</th><td>{$efficiencyLine}</td></tr><tr><th>Editorial Category</th><td>Auto</td></tr></table>\n";
 
+    $content .= buildBuyerPersonaSection($title, $isEV, $bodyType);
+
     $content .= "<h2>Strengths and Trade-Offs</h2>\n";
     $content .= "<ul><li><strong>Strengths:</strong> Cohesive engineering balance, strong day-to-day usability, mature technology integration, and a clear long-term value narrative.</li><li><strong>Trade-Offs:</strong> Higher entry price in premium trims, optional packages that may overlap in features, and availability pressure in high-demand regions.</li></ul>\n";
+
+    $content .= buildFaqSection($title, $isEV);
 
     $content .= "<h2>Final Editorial Verdict</h2>\n";
     $content .= "<p class='mt-3'>The {$title} succeeds because it behaves like a complete product, not a collection of isolated features. It combines emotional appeal with practical intelligence, and that combination is exactly what modern buyers need in an uncertain, fast-evolving market. If your priority is a vehicle that remains convincing beyond launch-week excitement, this model is a serious and well-justified candidate.</p>";
 
-    $content = ensureMinimumWordCount($content, $title, 2100);
+    $minimumWords = getSettingInt('min_words', 1600, 900, 3200);
+    $content = ensureMinimumWordCount($content, $title, $minimumWords);
 
     $plainText = trim(strip_tags($content));
     $excerpt = mb_substr($plainText, 0, 340);
