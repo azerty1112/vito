@@ -87,6 +87,7 @@ if (!isset($_SESSION['logged'])) {
 
 $pdo = db_connect();
 $csrf = csrfToken();
+publishAutoArticleBySchedule();
 
 if (!isset($_SESSION['flash_message'])) {
     $_SESSION['flash_message'] = null;
@@ -113,6 +114,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('daily_limit', (string)$newLimit);
         $_SESSION['flash_message'] = 'Daily RSS generation limit updated.';
         $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+
+    if (isset($_POST['update_auto_scheduler'])) {
+        $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
+        $interval = (int)($_POST['auto_publish_interval_minutes'] ?? 180);
+        $interval = max(5, min(1440, $interval));
+
+        setSetting('auto_ai_enabled', (string)$enabled);
+        setSetting('auto_publish_interval_minutes', (string)$interval);
+
+        $_SESSION['flash_message'] = 'Automatic AI publishing settings updated.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['auto_generate_now'])) {
+        $result = publishAutoArticleBySchedule(true);
+        if (($result['published'] ?? 0) === 1) {
+            $_SESSION['flash_message'] = 'Auto-generated and published: ' . ($result['title'] ?? 'New article');
+            $_SESSION['flash_type'] = 'success';
+        } else {
+            $_SESSION['flash_message'] = 'Automatic generation failed. Please try again.';
+            $_SESSION['flash_type'] = 'danger';
+        }
+
         header('Location: admin.php');
         exit;
     }
@@ -257,6 +287,9 @@ $totalArticles = (int)$pdo->query("SELECT COUNT(*) FROM articles")->fetchColumn(
 $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
+$autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
+$autoPublishInterval = getSettingInt('auto_publish_interval_minutes', 180, 5, 1440);
+$autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
 $categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 $articleSql = "SELECT id, title, slug, category, published_at FROM articles";
@@ -397,6 +430,33 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Controls max articles auto-generated per RSS fetch.</small>
+
+                    <hr class="border-secondary-subtle my-3">
+                    <h6><i class="bi bi-robot"></i> AI Auto Publish Scheduler</h6>
+                    <form method="post" class="row g-2 align-items-end">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="auto_ai_enabled" name="auto_ai_enabled" value="1" <?= $autoAiEnabled ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="auto_ai_enabled">Enable fully automatic title + article publishing</label>
+                            </div>
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label">Publish Every (minutes)</label>
+                            <input type="number" name="auto_publish_interval_minutes" class="form-control" min="5" max="1440" value="<?= $autoPublishInterval ?>">
+                        </div>
+                        <div class="col-4">
+                            <button name="update_auto_scheduler" value="1" class="btn btn-outline-warning w-100">Update</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary d-block mt-2">Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <form method="post" class="mt-2">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <button name="auto_generate_now" value="1" class="btn btn-outline-success w-100">
+                            <i class="bi bi-magic"></i> Generate Title + Publish Now
+                        </button>
+                    </form>
+
                     <form method="post" class="mt-3">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <button name="generate_demo_pack" value="1" class="btn btn-outline-info w-100">

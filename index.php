@@ -1,4 +1,6 @@
-<?php require_once 'functions.php'; ?>
+<?php require_once 'functions.php';
+publishAutoArticleBySchedule();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,7 +125,7 @@
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
             width: 100%;
             display: grid;
-            grid-template-columns: minmax(250px, 1.5fr) repeat(2, minmax(150px, 1fr)) auto;
+            grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(140px, 1fr)) auto;
             gap: 0.6rem;
             align-items: center;
         }
@@ -246,6 +248,7 @@
                 <option value="title_asc" <?= (($_GET['sort'] ?? '') === 'title_asc') ? 'selected' : '' ?>>Title A-Z</option>
                 <option value="title_desc" <?= (($_GET['sort'] ?? '') === 'title_desc') ? 'selected' : '' ?>>Title Z-A</option>
                 <option value="reading_fast" <?= (($_GET['sort'] ?? '') === 'reading_fast') ? 'selected' : '' ?>>Shortest Read</option>
+                <option value="relevance" <?= (($_GET['sort'] ?? '') === 'relevance') ? 'selected' : '' ?>>Smart Relevance</option>
             </select>
             <select name="category" class="form-select" aria-label="Filter by category">
                 <option value="">All categories</option>
@@ -258,6 +261,8 @@
                     <option value="<?= e($categoryOpt) ?>" <?= $categoryParam === $categoryOpt ? 'selected' : '' ?>><?= e($categoryOpt) ?></option>
                 <?php endforeach; ?>
             </select>
+            <input type="date" name="published_from" class="form-control" value="<?= e($_GET['published_from'] ?? '') ?>" aria-label="Published from">
+            <input type="date" name="published_to" class="form-control" value="<?= e($_GET['published_to'] ?? '') ?>" aria-label="Published to">
             <input type="hidden" name="view" value="<?= e($_GET['view'] ?? 'grid') ?>">
             <button class="btn btn-primary" type="submit">Apply</button>
         </form>
@@ -271,6 +276,11 @@ $slug = trim($_GET['slug'] ?? '');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $sort = $_GET['sort'] ?? 'newest';
 $category = trim($_GET['category'] ?? '');
+$publishedFrom = normalizeDateInput($_GET['published_from'] ?? '');
+$publishedTo = normalizeDateInput($_GET['published_to'] ?? '');
+if ($publishedFrom !== '' && $publishedTo !== '' && $publishedFrom > $publishedTo) {
+    [$publishedFrom, $publishedTo] = [$publishedTo, $publishedFrom];
+}
 $view = ($_GET['view'] ?? 'grid') === 'list' ? 'list' : 'grid';
 $perPage = 9;
 $sortMap = [
@@ -279,6 +289,7 @@ $sortMap = [
     'title_asc' => 'title ASC',
     'title_desc' => 'title DESC',
     'reading_fast' => 'LENGTH(content) ASC',
+    'relevance' => 'id DESC',
 ];
 $orderBy = $sortMap[$sort] ?? $sortMap['newest'];
 $baseQuery = [];
@@ -290,6 +301,12 @@ if (isset($sortMap[$sort])) {
 }
 if ($category !== '') {
     $baseQuery['category'] = $category;
+}
+if ($publishedFrom !== '') {
+    $baseQuery['published_from'] = $publishedFrom;
+}
+if ($publishedTo !== '') {
+    $baseQuery['published_to'] = $publishedTo;
 }
 $baseQuery['view'] = $view;
 ?>
@@ -353,12 +370,20 @@ $baseQuery['view'] = $view;
     $clauses = [];
     $params = [];
     if ($search !== '') {
-        $clauses[] = "(title LIKE :search OR excerpt LIKE :search)";
+        $clauses[] = "(title LIKE :search OR excerpt LIKE :search OR content LIKE :search)";
         $params['search'] = '%' . $search . '%';
     }
     if ($category !== '') {
         $clauses[] = "category = :category";
         $params['category'] = $category;
+    }
+    if ($publishedFrom !== '') {
+        $clauses[] = "DATE(published_at) >= :published_from";
+        $params['published_from'] = $publishedFrom;
+    }
+    if ($publishedTo !== '') {
+        $clauses[] = "DATE(published_at) <= :published_to";
+        $params['published_to'] = $publishedTo;
     }
     $where = $clauses ? ('WHERE ' . implode(' AND ', $clauses)) : '';
 
@@ -371,13 +396,26 @@ $baseQuery['view'] = $view;
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
 
+    if ($sort === 'relevance' && $search !== '') {
+        $orderBy = '(CASE WHEN title LIKE :search_exact THEN 100 ELSE 0 END + CASE WHEN excerpt LIKE :search_exact THEN 45 ELSE 0 END + CASE WHEN content LIKE :search_exact THEN 25 ELSE 0 END + CASE WHEN title LIKE :search THEN 20 ELSE 0 END + CASE WHEN excerpt LIKE :search THEN 10 ELSE 0 END) DESC, id DESC';
+    }
+
     $sql = "SELECT * FROM articles $where ORDER BY $orderBy LIMIT :limit OFFSET :offset";
     $stmt = $pdo->prepare($sql);
     if ($search !== '') {
         $stmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
+        if ($sort === 'relevance') {
+            $stmt->bindValue(':search_exact', $search . '%', PDO::PARAM_STR);
+        }
     }
     if ($category !== '') {
         $stmt->bindValue(':category', $category, PDO::PARAM_STR);
+    }
+    if ($publishedFrom !== '') {
+        $stmt->bindValue(':published_from', $publishedFrom, PDO::PARAM_STR);
+    }
+    if ($publishedTo !== '') {
+        $stmt->bindValue(':published_to', $publishedTo, PDO::PARAM_STR);
     }
     $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -392,6 +430,12 @@ $baseQuery['view'] = $view;
         }
         if ($category !== '') {
             $featureStmt->bindValue(':category', $category, PDO::PARAM_STR);
+        }
+        if ($publishedFrom !== '') {
+            $featureStmt->bindValue(':published_from', $publishedFrom, PDO::PARAM_STR);
+        }
+        if ($publishedTo !== '') {
+            $featureStmt->bindValue(':published_to', $publishedTo, PDO::PARAM_STR);
         }
         $featureStmt->execute();
         $featured = $featureStmt->fetch(PDO::FETCH_ASSOC) ?: null;
