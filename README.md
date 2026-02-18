@@ -6,7 +6,7 @@ Simple PHP automotive blog generator with:
 - Search by title/excerpt.
 - Pagination on public article list.
 - Single article view with related posts and estimated reading time.
-- Admin panel for manual article generation.
+- Admin panel for manual and fully automatic AI article generation (auto title + scheduled publishing).
 - RSS fetch automation using configurable `daily_limit`.
 - RSS source management (add/remove).
 - Article management (view/delete).
@@ -42,4 +42,14 @@ curl "http://localhost:8000/api.php?endpoint=stats"
 curl "http://localhost:8000/api.php?endpoint=article&slug=your-article-slug"
 ```
 
-Supported query params for `api.php` (articles endpoint): `q`, `category`, `sort`, `page`, `per_page`.
+Supported query params for `api.php` (articles endpoint): `q`, `category`, `published_from`, `published_to`, `sort` (`newest`, `oldest`, `title_asc`, `title_desc`, `relevance`), `page`, `per_page`.
+
+### Automatic AI publishing
+
+From `admin.php`, you can enable **AI Auto Publish Scheduler** to:
+
+- Generate a title automatically.
+- Generate the full article from that title without manual input.
+- Publish automatically every configured interval (minutes).
+
+Note: scheduler runs when site endpoints are visited (`index.php`, `api.php`, `admin.php`) or when clicking **Generate Title + Publish Now** in admin.

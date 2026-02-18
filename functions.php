@@ -11,6 +11,93 @@ function e($text) {
     return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
 }
 
+
+function normalizeDateInput($value) {
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+
+    $date = DateTime::createFromFormat('Y-m-d', $value);
+    if (!$date || $date->format('Y-m-d') !== $value) {
+        return '';
+    }
+
+    return $value;
+}
+
+
+function getSettingInt($key, $default = 0, $min = null, $max = null) {
+    $value = (int)getSetting($key, (string)$default);
+    if ($min !== null) {
+        $value = max((int)$min, $value);
+    }
+    if ($max !== null) {
+        $value = min((int)$max, $value);
+    }
+    return $value;
+}
+
+function generateAutoTitle() {
+    $year = (int)date('Y') + rand(0, 1);
+    $brands = ['Toyota', 'BMW', 'Mercedes', 'Audi', 'Porsche', 'Tesla', 'Hyundai', 'Kia', 'Ford', 'Nissan'];
+    $models = ['SUV', 'Sedan', 'Coupe', 'EV Crossover', 'Hybrid SUV', 'Performance Hatchback', 'Electric Sedan'];
+    $angles = [
+        'Full Review and Buyer Guide',
+        'Long-Term Ownership Analysis',
+        'Real-World Efficiency Test',
+        'Daily Driving Impression',
+        'Smart Technology Deep Dive',
+        'Comparison and Value Breakdown'
+    ];
+
+    return sprintf(
+        '%d %s %s %s',
+        $year,
+        $brands[array_rand($brands)],
+        $models[array_rand($models)],
+        $angles[array_rand($angles)]
+    );
+}
+
+function generateUniqueAutoTitle($maxAttempts = 12) {
+    $attempts = max(1, (int)$maxAttempts);
+    for ($i = 0; $i < $attempts; $i++) {
+        $title = generateAutoTitle();
+        if (!articleExists($title)) {
+            return $title;
+        }
+    }
+
+    return null;
+}
+
+function publishAutoArticleBySchedule($force = false) {
+    $enabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
+    if (!$force && $enabled !== 1) {
+        return ['published' => 0, 'reason' => 'disabled'];
+    }
+
+    $intervalMinutes = getSettingInt('auto_publish_interval_minutes', 180, 1, 1440);
+    $lastRun = strtotime((string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00')) ?: 0;
+    $now = time();
+
+    if (!$force && ($now - $lastRun) < ($intervalMinutes * 60)) {
+        return ['published' => 0, 'reason' => 'not_due'];
+    }
+
+    $title = generateUniqueAutoTitle();
+    if ($title === null) {
+        return ['published' => 0, 'reason' => 'title_generation_failed'];
+    }
+
+    $data = generateArticle($title);
+    saveArticle($title, $data);
+    setSetting('auto_publish_last_run_at', date('Y-m-d H:i:s', $now));
+
+    return ['published' => 1, 'reason' => 'ok', 'title' => $title];
+}
+
 function getSetting($key, $default = null) {
     $pdo = db_connect();
     $stmt = $pdo->prepare("SELECT value FROM settings WHERE key = ? LIMIT 1");

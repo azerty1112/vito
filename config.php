@@ -30,7 +30,10 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS rss_sources (id INTEGER PRIMARY KEY, url 
 $defaults = [
     'min_words' => '1200',
     'auto_publish' => '1',
-    'daily_limit' => '5'
+    'daily_limit' => '5',
+    'auto_ai_enabled' => '1',
+    'auto_publish_interval_minutes' => '180',
+    'auto_publish_last_run_at' => '1970-01-01 00:00:00'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);
