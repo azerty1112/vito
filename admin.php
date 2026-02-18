@@ -121,11 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['update_auto_scheduler'])) {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
-        $interval = (int)($_POST['auto_publish_interval_minutes'] ?? 180);
-        $interval = max(5, min(1440, $interval));
+        $interval = (int)($_POST['auto_publish_interval_seconds'] ?? 10800);
+        $interval = max(10, min(86400, $interval));
 
         setSetting('auto_ai_enabled', (string)$enabled);
-        setSetting('auto_publish_interval_minutes', (string)$interval);
+        setSetting('auto_publish_interval_seconds', (string)$interval);
 
         $_SESSION['flash_message'] = 'Automatic AI publishing settings updated.';
         $_SESSION['flash_type'] = 'success';
@@ -288,7 +288,7 @@ $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColum
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
-$autoPublishInterval = getSettingInt('auto_publish_interval_minutes', 180, 5, 1440);
+$autoPublishInterval = getAutoPublishIntervalSeconds();
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
 $categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -442,14 +442,14 @@ $rssRows = $rssStmt->fetchAll(PDO::FETCH_ASSOC);
                             </div>
                         </div>
                         <div class="col-8">
-                            <label class="form-label">Publish Every (minutes)</label>
-                            <input type="number" name="auto_publish_interval_minutes" class="form-control" min="5" max="1440" value="<?= $autoPublishInterval ?>">
+                            <label class="form-label">Publish Every (seconds)</label>
+                            <input type="number" name="auto_publish_interval_seconds" class="form-control" min="10" max="86400" value="<?= $autoPublishInterval ?>">
                         </div>
                         <div class="col-4">
                             <button name="update_auto_scheduler" value="1" class="btn btn-outline-warning w-100">Update</button>
                         </div>
                     </form>
-                    <small class="text-secondary d-block mt-2">Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <small class="text-secondary d-block mt-2">Set to 10 seconds for a fast demo. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
                     <form method="post" class="mt-2">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <button name="auto_generate_now" value="1" class="btn btn-outline-success w-100">
