@@ -12,6 +12,7 @@ if ($endpoint === 'stats') {
     $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
     $totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
     $latestPublish = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
+    $workflowSummary = getContentWorkflowSummary();
 
     echo json_encode([
         'site' => SITE_TITLE,
@@ -19,6 +20,7 @@ if ($endpoint === 'stats') {
         'total_rss_sources' => $totalSources,
         'total_web_sources' => $totalWebSources,
         'selected_content_workflow' => getSelectedContentWorkflow(),
+        'workflow_summary' => $workflowSummary,
         'latest_publish' => $latestPublish,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     exit;

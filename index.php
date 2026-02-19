@@ -125,7 +125,7 @@ publishAutoArticleBySchedule();
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
             width: 100%;
             display: grid;
-            grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(140px, 1fr)) auto;
+            grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto;
             gap: 0.6rem;
             align-items: center;
         }
@@ -189,6 +189,52 @@ publishAutoArticleBySchedule();
             margin-bottom: 0.85rem;
         }
 
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            border-radius: 999px;
+            padding: 0.36rem 0.7rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .status-chip.ready {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .status-chip.warn {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+
+        .quick-categories {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .quick-categories a {
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            padding: 0.32rem 0.7rem;
+            background: rgba(255, 255, 255, 0.85);
+            color: #334155;
+        }
+
+        .quick-categories a.active {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #fff;
+        }
+
         .featured-spotlight {
             position: relative;
             overflow: hidden;
@@ -222,6 +268,16 @@ publishAutoArticleBySchedule();
 
         .list-group-item:last-child {
             border-bottom: 0;
+        }
+
+        @media (max-width: 1199px) {
+            .toolbar-form {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .toolbar-form input[type="search"] {
+                grid-column: 1 / -1;
+            }
         }
 
         @media (max-width: 767px) {
@@ -263,6 +319,12 @@ publishAutoArticleBySchedule();
             </select>
             <input type="date" name="published_from" class="form-control" value="<?= e($_GET['published_from'] ?? '') ?>" aria-label="Published from">
             <input type="date" name="published_to" class="form-control" value="<?= e($_GET['published_to'] ?? '') ?>" aria-label="Published to">
+            <select name="per_page" class="form-select" aria-label="Articles per page">
+                <?php $perPageRequest = (int)($_GET['per_page'] ?? 9); ?>
+                <?php foreach ([6, 9, 12, 18] as $perPageOption): ?>
+                    <option value="<?= $perPageOption ?>" <?= $perPageRequest === $perPageOption ? 'selected' : '' ?>><?= $perPageOption ?> / page</option>
+                <?php endforeach; ?>
+            </select>
             <input type="hidden" name="view" value="<?= e($_GET['view'] ?? 'grid') ?>">
             <button class="btn btn-primary" type="submit">Apply</button>
         </form>
@@ -282,7 +344,12 @@ if ($publishedFrom !== '' && $publishedTo !== '' && $publishedFrom > $publishedT
     [$publishedFrom, $publishedTo] = [$publishedTo, $publishedFrom];
 }
 $view = ($_GET['view'] ?? 'grid') === 'list' ? 'list' : 'grid';
-$perPage = 9;
+$perPage = (int)($_GET['per_page'] ?? 9);
+$perPageAllowed = [6, 9, 12, 18];
+if (!in_array($perPage, $perPageAllowed, true)) {
+    $perPage = 9;
+}
+$workflowSummary = getContentWorkflowSummary();
 $sortMap = [
     'newest' => 'id DESC',
     'oldest' => 'id ASC',
@@ -309,6 +376,7 @@ if ($publishedTo !== '') {
     $baseQuery['published_to'] = $publishedTo;
 }
 $baseQuery['view'] = $view;
+$baseQuery['per_page'] = $perPage;
 ?>
 
 <div class="container content-shell py-5">
@@ -357,6 +425,23 @@ $baseQuery['view'] = $view;
             <span class="badge text-bg-primary mb-2">Automotive Insights</span>
             <h1 class="display-6 mb-1">Latest Automotive Articles</h1>
             <p class="text-muted mb-0 hero-subtitle">Explore curated guides, reviews, and practical tips from the car world — now with a cleaner, more modern reading experience.</p>
+            <?php
+            $isReady = $workflowSummary['health'] === 'ready';
+            $statusClass = $isReady ? 'ready' : 'warn';
+            $statusText = $isReady
+                ? 'Content system is healthy and ready to publish.'
+                : ($workflowSummary['health'] === 'missing_sources'
+                    ? 'No sources linked to selected workflow.'
+                    : 'Auto scheduler is currently disabled.');
+            ?>
+            <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                <span class="status-chip <?= $statusClass ?>">
+                    <?= $isReady ? '✅' : '⚠️' ?> <?= e($statusText) ?>
+                </span>
+                <span class="meta-pill">Workflow: <?= e($workflowSummary['selected_workflow_label']) ?></span>
+                <span class="meta-pill">Sources: <?= (int)$workflowSummary['selected_sources'] ?></span>
+                <span class="meta-pill">Daily limit: <?= (int)$workflowSummary['daily_limit'] ?></span>
+            </div>
         </div>
         <div class="btn-group" role="group" aria-label="View switch">
             <?php $gridQuery = array_merge($baseQuery, ['view' => 'grid']); ?>
@@ -365,6 +450,17 @@ $baseQuery['view'] = $view;
             <a class="btn btn-sm <?= $view === 'list' ? 'btn-dark' : 'btn-outline-dark' ?>" href="index.php?<?= e(http_build_query($listQuery)) ?>">List</a>
         </div>
     </div>
+
+    <?php if ($categories): ?>
+        <div class="quick-categories mb-4">
+            <?php $allQuery = array_merge($baseQuery, ['category' => '', 'page' => 1]); ?>
+            <a class="<?= $category === '' ? 'active' : '' ?>" href="index.php?<?= e(http_build_query($allQuery)) ?>">All</a>
+            <?php foreach (array_slice($categories, 0, 8) as $categoryChip): ?>
+                <?php $chipQuery = array_merge($baseQuery, ['category' => $categoryChip, 'page' => 1]); ?>
+                <a class="<?= $category === $categoryChip ? 'active' : '' ?>" href="index.php?<?= e(http_build_query($chipQuery)) ?>"><?= e($categoryChip) ?></a>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 
     <?php
     $clauses = [];

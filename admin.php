@@ -394,6 +394,7 @@ $totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchCo
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
 $selectedWorkflow = getSelectedContentWorkflow();
+$workflowSummary = getContentWorkflowSummary();
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
 $autoPublishInterval = getAutoPublishIntervalSeconds();
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
@@ -479,6 +480,11 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
             color: #f8f9fa;
             border-color: rgba(255, 255, 255, 0.08);
         }
+        .workflow-badge {
+            font-size: 0.75rem;
+            letter-spacing: 0.2px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
     </style>
 </head>
 <body class="text-light">
@@ -500,6 +506,22 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
     <?php if ($message): ?>
         <div class="alert alert-<?= e($messageType) ?> shadow-sm"><?= e($message) ?></div>
     <?php endif; ?>
+
+    <?php
+    $workflowHealth = $workflowSummary['health'] ?? 'ready';
+    $workflowAlertClass = $workflowHealth === 'ready' ? 'success' : 'warning';
+    $workflowAlertText = $workflowHealth === 'ready'
+        ? 'Workflow is ready. Scheduled and manual runs will follow the selected source type.'
+        : ($workflowHealth === 'missing_sources'
+            ? 'No sources found for the selected workflow. Add sources below before running.'
+            : 'Auto scheduler is disabled. Manual workflow runs still work normally.');
+    ?>
+    <div class="alert alert-<?= $workflowAlertClass ?> d-flex flex-wrap align-items-center gap-2 shadow-sm" role="status">
+        <span class="badge text-bg-dark workflow-badge">Workflow: <?= e($workflowSummary['selected_workflow_label']) ?></span>
+        <span class="badge text-bg-secondary workflow-badge">Sources: <?= (int)$workflowSummary['selected_sources'] ?></span>
+        <span class="badge text-bg-secondary workflow-badge">Daily limit: <?= (int)$workflowSummary['daily_limit'] ?></span>
+        <span class="ms-1"><?= e($workflowAlertText) ?></span>
+    </div>
 
     <div class="row g-3 mb-4">
         <div class="col-sm-6 col-lg-3">

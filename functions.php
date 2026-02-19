@@ -294,6 +294,36 @@ function runSelectedContentWorkflow($limit = null) {
     return runRssWorkflow($limit);
 }
 
+function getContentWorkflowSummary() {
+    $pdo = db_connect();
+    $selected = getSelectedContentWorkflow();
+    $rssSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
+    $webSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
+    $dailyLimit = getSettingInt('daily_limit', 5, 1, 50);
+
+    $selectedSources = $selected === 'web' ? $webSources : $rssSources;
+    $scheduler = getAutoPublishSchedulerMeta();
+
+    $health = 'ready';
+    if ($selectedSources <= 0) {
+        $health = 'missing_sources';
+    } elseif (getSettingInt('auto_ai_enabled', 1, 0, 1) === 0) {
+        $health = 'scheduler_disabled';
+    }
+
+    return [
+        'selected_workflow' => $selected,
+        'selected_workflow_label' => $selected === 'web' ? 'Normal Sites Workflow' : 'RSS Workflow',
+        'rss_sources' => $rssSources,
+        'web_sources' => $webSources,
+        'selected_sources' => $selectedSources,
+        'daily_limit' => $dailyLimit,
+        'auto_ai_enabled' => getSettingInt('auto_ai_enabled', 1, 0, 1) === 1,
+        'scheduler' => $scheduler,
+        'health' => $health,
+    ];
+}
+
 
 function normalizeDateInput($value) {
     $value = trim((string)$value);
