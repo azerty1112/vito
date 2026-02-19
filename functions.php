@@ -17,10 +17,21 @@ function e($text) {
 }
 
 function fetchUrlBody($url, $timeoutSeconds = 10) {
+    $url = trim((string)$url);
+    if ($url === '') {
+        return null;
+    }
+
+    $cacheHit = getCachedUrlBody($url, false);
+    if ($cacheHit !== null) {
+        return $cacheHit;
+    }
+
     $context = stream_context_create([
         'http' => [
             'timeout' => max(1, (int)$timeoutSeconds),
-            'user_agent' => 'vito-rss-fetcher/1.0',
+            'ignore_errors' => true,
+            'user_agent' => getFetcherUserAgent(),
         ],
         'ssl' => [
             'verify_peer' => true,
@@ -29,7 +40,97 @@ function fetchUrlBody($url, $timeoutSeconds = 10) {
     ]);
 
     $body = @file_get_contents($url, false, $context);
-    return is_string($body) ? $body : null;
+    $statusCode = extractHttpStatusCode($http_response_header ?? []);
+    $ok = is_string($body) && $body !== '' && $statusCode >= 200 && $statusCode < 400;
+
+    if ($ok) {
+        cacheUrlBody($url, $body, $statusCode, true);
+        return $body;
+    }
+
+    cacheUrlBody($url, is_string($body) ? $body : '', $statusCode, false);
+
+    $staleBody = getCachedUrlBody($url, true);
+    if ($staleBody !== null) {
+        return $staleBody;
+    }
+
+    return null;
+}
+
+function getFetcherUserAgent() {
+    $agents = [
+        'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) VitoCrawler/1.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) VitoFetcher/1.0 Chrome/121.0 Safari/537.36',
+    ];
+
+    return $agents[array_rand($agents)];
+}
+
+function extractHttpStatusCode(array $headers) {
+    foreach ($headers as $headerLine) {
+        if (preg_match('/^HTTP\/\d(?:\.\d)?\s+(\d{3})/i', (string)$headerLine, $matches)) {
+            return (int)$matches[1];
+        }
+    }
+    return 0;
+}
+
+function getUrlCacheTtlSeconds() {
+    return getSettingInt('url_cache_ttl_seconds', 900, 60, 86400);
+}
+
+function getCachedUrlBody($url, $allowStale = false) {
+    $pdo = db_connect();
+    $stmt = $pdo->prepare('SELECT body, fetched_at, ttl_seconds, blocked_until FROM url_cache WHERE url = ? LIMIT 1');
+    $stmt->execute([$url]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+
+    $now = time();
+    if ((int)$row['blocked_until'] > $now) {
+        return null;
+    }
+
+    $ttl = max(60, (int)$row['ttl_seconds']);
+    if (!$allowStale && ((int)$row['fetched_at'] + $ttl) < $now) {
+        return null;
+    }
+
+    $body = (string)($row['body'] ?? '');
+    return $body !== '' ? $body : null;
+}
+
+function cacheUrlBody($url, $body, $statusCode, $success) {
+    $pdo = db_connect();
+    $ttl = getUrlCacheTtlSeconds();
+    $now = time();
+    $statusCode = (int)$statusCode;
+
+    $existingStmt = $pdo->prepare('SELECT fail_count FROM url_cache WHERE url = ? LIMIT 1');
+    $existingStmt->execute([$url]);
+    $existingFail = (int)$existingStmt->fetchColumn();
+
+    $failCount = $success ? 0 : ($existingFail + 1);
+    $blockedUntil = 0;
+    if (!$success && ($statusCode === 429 || $statusCode === 403 || $failCount >= 3)) {
+        $blockedUntil = $now + min(1800, 60 * $failCount);
+    }
+
+    $stmt = $pdo->prepare("INSERT INTO url_cache (url, body, status_code, fetched_at, ttl_seconds, fail_count, blocked_until)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(url) DO UPDATE SET
+            body = excluded.body,
+            status_code = excluded.status_code,
+            fetched_at = excluded.fetched_at,
+            ttl_seconds = excluded.ttl_seconds,
+            fail_count = excluded.fail_count,
+            blocked_until = excluded.blocked_until");
+
+    $stmt->execute([$url, (string)$body, $statusCode, $now, $ttl, $failCount, $blockedUntil]);
 }
 
 function extractFeedTitlesWithSymfonyCrawler($xmlString, $limit = 50) {
@@ -72,7 +173,7 @@ function extractFeedTitlesWithSymfonyCrawler($xmlString, $limit = 50) {
         }
     }
 
-    return array_values(array_unique($titles));
+    return mergeAndDeduplicateTitles($titles);
 }
 
 function extractFeedTitlesWithSimpleXml($xmlString, $limit = 50) {
@@ -108,7 +209,7 @@ function extractFeedTitlesWithSimpleXml($xmlString, $limit = 50) {
         }
     }
 
-    return array_values(array_unique($titles));
+    return mergeAndDeduplicateTitles($titles);
 }
 
 function extractFeedTitles($url, $limit = 50) {
@@ -177,7 +278,7 @@ function extractTitlesFromNormalPageWithSymfonyCrawler($htmlString, $limit = 50)
         }
     }
 
-    return array_values(array_unique($titles));
+    return mergeAndDeduplicateTitles($titles);
 }
 
 function extractTitlesFromNormalPage($url, $limit = 50) {
@@ -195,20 +296,144 @@ function getSelectedContentWorkflow() {
     return in_array($workflow, $allowed, true) ? $workflow : 'rss';
 }
 
+function enqueueWorkflowSources($workflow, array $sources) {
+    $workflow = $workflow === 'web' ? 'web' : 'rss';
+    $pdo = db_connect();
+    $now = time();
+
+    $requeueSeconds = getSettingInt('queue_requeue_seconds', 900, 60, 86400);
+    $requeueAt = $now + $requeueSeconds;
+    $insertStmt = $pdo->prepare('INSERT INTO scrape_queue (workflow, source_url, status, attempts, locked_until, available_at, created_at, updated_at)
+        VALUES (?, ?, "pending", 0, 0, ?, ?, ?)
+        ON CONFLICT(workflow, source_url) DO UPDATE SET
+            status = CASE
+                WHEN scrape_queue.status = "processing" AND scrape_queue.locked_until > excluded.updated_at THEN scrape_queue.status
+                ELSE "pending"
+            END,
+            attempts = CASE
+                WHEN scrape_queue.status = "processing" AND scrape_queue.locked_until > excluded.updated_at THEN scrape_queue.attempts
+                ELSE 0
+            END,
+            locked_until = CASE
+                WHEN scrape_queue.status = "processing" AND scrape_queue.locked_until > excluded.updated_at THEN scrape_queue.locked_until
+                ELSE 0
+            END,
+            available_at = CASE
+                WHEN scrape_queue.status = "processing" AND scrape_queue.locked_until > excluded.updated_at THEN scrape_queue.available_at
+                WHEN scrape_queue.status = "done" THEN ?
+                ELSE excluded.available_at
+            END,
+            updated_at = excluded.updated_at');
+
+    foreach ($sources as $sourceUrl) {
+        $sourceUrl = trim((string)$sourceUrl);
+        if ($sourceUrl === '') {
+            continue;
+        }
+
+        $insertStmt->execute([$workflow, $sourceUrl, $now, $now, $now, $requeueAt]);
+    }
+}
+
+function pullWorkflowQueueItems($workflow, $limit) {
+    $workflow = $workflow === 'web' ? 'web' : 'rss';
+    $limit = max(1, (int)$limit);
+    $pdo = db_connect();
+    $now = time();
+
+    $stmt = $pdo->prepare('SELECT id, source_url FROM scrape_queue WHERE workflow = ? AND status = "pending" AND available_at <= ? AND locked_until <= ? ORDER BY id ASC LIMIT ' . $limit);
+    $stmt->execute([$workflow, $now, $now]);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $lockUntil = $now + 120;
+    $lockStmt = $pdo->prepare('UPDATE scrape_queue SET status = "processing", locked_until = ?, updated_at = ? WHERE id = ?');
+    foreach ($items as $item) {
+        $lockStmt->execute([$lockUntil, $now, (int)$item['id']]);
+    }
+
+    return $items;
+}
+
+function markQueueItemDone($id) {
+    $pdo = db_connect();
+    $stmt = $pdo->prepare('UPDATE scrape_queue SET status = "done", locked_until = 0, updated_at = ? WHERE id = ?');
+    $stmt->execute([time(), (int)$id]);
+}
+
+function markQueueItemForRetry($id) {
+    $pdo = db_connect();
+    $retryDelay = getSettingInt('queue_retry_delay_seconds', 60, 10, 3600);
+    $maxAttempts = getSettingInt('queue_max_attempts', 3, 1, 10);
+    $now = time();
+
+    $stmt = $pdo->prepare('SELECT attempts FROM scrape_queue WHERE id = ? LIMIT 1');
+    $stmt->execute([(int)$id]);
+    $attempts = (int)$stmt->fetchColumn() + 1;
+
+    if ($attempts >= $maxAttempts) {
+        $failStmt = $pdo->prepare('UPDATE scrape_queue SET status = "failed", attempts = ?, locked_until = 0, updated_at = ? WHERE id = ?');
+        $failStmt->execute([$attempts, $now, (int)$id]);
+        return;
+    }
+
+    $retryAt = $now + ($retryDelay * $attempts);
+    $retryStmt = $pdo->prepare('UPDATE scrape_queue SET status = "pending", attempts = ?, available_at = ?, locked_until = 0, updated_at = ? WHERE id = ?');
+    $retryStmt->execute([$attempts, $retryAt, $now, (int)$id]);
+}
+
+function cleanAndNormalizeTitle($title) {
+    $title = html_entity_decode((string)$title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $title = preg_replace('/\s+/u', ' ', $title);
+    $title = preg_replace('/\s*[\-|\|•]\s*(autoblog|caranddriver|motor1|official site|rss)$/iu', '', (string)$title);
+    $title = preg_replace('/[\x00-\x1F\x7F]/u', '', (string)$title);
+    $title = trim((string)$title);
+    if (mb_strlen($title) < 5) {
+        return '';
+    }
+    return $title;
+}
+
+function mergeAndDeduplicateTitles(array ...$collections) {
+    $merged = [];
+    foreach ($collections as $titles) {
+        foreach ($titles as $title) {
+            $clean = cleanAndNormalizeTitle($title);
+            if ($clean === '') {
+                continue;
+            }
+            $key = normalizeTextForComparison($clean);
+            if (!isset($merged[$key])) {
+                $merged[$key] = $clean;
+            }
+        }
+    }
+    return array_values($merged);
+}
+
 function runRssWorkflow($limit = null) {
     $pdo = db_connect();
     $sources = $pdo->query("SELECT url FROM rss_sources ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
     $limit = $limit === null ? max(1, (int)getSetting('daily_limit', 5)) : max(1, (int)$limit);
+    $batchSize = getSettingInt('workflow_batch_size', 8, 1, 30);
+
+    enqueueWorkflowSources('rss', $sources);
+    $queueItems = pullWorkflowQueueItems('rss', $batchSize);
 
     $count = 0;
     $sourceStats = [];
 
-    foreach ($sources as $url) {
+    foreach ($queueItems as $queueItem) {
+        $url = (string)$queueItem['source_url'];
         if ($count >= $limit) {
             break;
         }
 
         $titles = extractFeedTitles($url, max(10, $limit * 3));
+        if (!$titles) {
+            markQueueItemForRetry((int)$queueItem['id']);
+            continue;
+        }
+
         $publishedFromSource = 0;
 
         foreach ($titles as $title) {
@@ -230,11 +455,14 @@ function runRssWorkflow($limit = null) {
             'fetched_titles' => count($titles),
             'published' => $publishedFromSource,
         ];
+
+        markQueueItemDone((int)$queueItem['id']);
     }
 
     return [
         'workflow' => 'rss',
         'sources_count' => count($sources),
+        'queue_batch' => count($queueItems),
         'published' => $count,
         'stats' => $sourceStats,
     ];
@@ -244,16 +472,26 @@ function runWebWorkflow($limit = null) {
     $pdo = db_connect();
     $sources = $pdo->query("SELECT url FROM web_sources ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
     $limit = $limit === null ? max(1, (int)getSetting('daily_limit', 5)) : max(1, (int)$limit);
+    $batchSize = getSettingInt('workflow_batch_size', 8, 1, 30);
+
+    enqueueWorkflowSources('web', $sources);
+    $queueItems = pullWorkflowQueueItems('web', $batchSize);
 
     $count = 0;
     $sourceStats = [];
 
-    foreach ($sources as $url) {
+    foreach ($queueItems as $queueItem) {
+        $url = (string)$queueItem['source_url'];
         if ($count >= $limit) {
             break;
         }
 
         $titles = extractTitlesFromNormalPage($url, max(10, $limit * 3));
+        if (!$titles) {
+            markQueueItemForRetry((int)$queueItem['id']);
+            continue;
+        }
+
         $publishedFromSource = 0;
 
         foreach ($titles as $title) {
@@ -275,11 +513,14 @@ function runWebWorkflow($limit = null) {
             'fetched_titles' => count($titles),
             'published' => $publishedFromSource,
         ];
+
+        markQueueItemDone((int)$queueItem['id']);
     }
 
     return [
         'workflow' => 'web',
         'sources_count' => count($sources),
+        'queue_batch' => count($queueItems),
         'published' => $count,
         'stats' => $sourceStats,
     ];
@@ -464,8 +705,9 @@ function buildFaqSection($title, $isEV) {
 
 function generateAutoTitle() {
     $year = (int)date('Y') + rand(0, 1);
-    $brands = ['Toyota', 'BMW', 'Mercedes', 'Audi', 'Porsche', 'Tesla', 'Hyundai', 'Kia', 'Ford', 'Nissan'];
-    $models = ['SUV', 'Sedan', 'Coupe', 'EV Crossover', 'Hybrid SUV', 'Performance Hatchback', 'Electric Sedan'];
+    $brands = ['Toyota', 'BMW', 'Mercedes', 'Audi', 'Porsche', 'Tesla', 'Hyundai', 'Kia', 'Ford', 'Nissan', 'Volvo', 'Lexus'];
+    $models = ['SUV', 'Sedan', 'Coupe', 'EV Crossover', 'Hybrid SUV', 'Performance Hatchback', 'Electric Sedan', 'Luxury Wagon'];
+    $seoModifiers = ['Review', 'Specs', 'Price', 'Comparison', 'Buying Guide'];
     $angles = [
         'Full Review and Buyer Guide',
         'Long-Term Ownership Analysis',
@@ -476,10 +718,11 @@ function generateAutoTitle() {
     ];
 
     return sprintf(
-        '%d %s %s %s',
+        '%d %s %s %s: %s for Smart Buyers',
         $year,
         $brands[array_rand($brands)],
         $models[array_rand($models)],
+        $seoModifiers[array_rand($seoModifiers)],
         $angles[array_rand($angles)]
     );
 }
@@ -715,6 +958,49 @@ function ensureMinimumWordCount($html, $title, $minimumWords = 2100) {
     return $html;
 }
 
+function buildSeoBlock($title, $excerpt) {
+    $keywords = [
+        $title,
+        $title . ' review',
+        $title . ' specs',
+        $title . ' price',
+        'best car buying guide'
+    ];
+
+    $metaDescription = mb_substr(trim((string)$excerpt), 0, 155);
+    $keywordHtml = '<ul><li>' . implode('</li><li>', array_map('e', $keywords)) . '</li></ul>';
+
+    return [
+        'meta_title' => $title . ' | SEO Review & Buyer Guide',
+        'meta_description' => $metaDescription,
+        'keywords' => $keywords,
+        'html_block' => "<section class='seo-optimization'><h2>SEO Focus Keywords</h2>{$keywordHtml}<p><strong>Meta Description:</strong> " . e($metaDescription) . "</p></section>",
+    ];
+}
+
+function writeArticleExportFiles($articleId, $slug, array $payload) {
+    $exportsDir = __DIR__ . '/data/exports';
+    if (!is_dir($exportsDir)) {
+        mkdir($exportsDir, 0777, true);
+    }
+
+    $htmlPath = $exportsDir . '/' . $slug . '.html';
+    $jsonPath = $exportsDir . '/' . $slug . '.json';
+
+    file_put_contents($htmlPath, (string)($payload['content'] ?? ''));
+    file_put_contents($jsonPath, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+    $pdo = db_connect();
+    $stmt = $pdo->prepare("INSERT INTO article_exports (article_id, slug, html_path, json_path, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(article_id) DO UPDATE SET
+            slug = excluded.slug,
+            html_path = excluded.html_path,
+            json_path = excluded.json_path,
+            created_at = excluded.created_at");
+    $stmt->execute([(int)$articleId, $slug, 'data/exports/' . $slug . '.html', 'data/exports/' . $slug . '.json', date('Y-m-d H:i:s')]);
+}
+
 function generateArticle($title) {
     $model = trim(preg_replace('/\b(202[0-9]|20[0-9]{2})\b/', '', $title));
     $isEV = stripos($title, 'EV') !== false || stripos($title, 'electric') !== false;
@@ -796,7 +1082,7 @@ function generateArticle($title) {
     $content .= "<h2>Final Editorial Verdict</h2>\n";
     $content .= "<p class='mt-3'>The {$title} succeeds because it behaves like a complete product, not a collection of isolated features. It combines emotional appeal with practical intelligence, and that combination is exactly what modern buyers need in an uncertain, fast-evolving market. If your priority is a vehicle that remains convincing beyond launch-week excitement, this model is a serious and well-justified candidate.</p>";
 
-    $minimumWords = getSettingInt('min_words', 1600, 900, 3200);
+    $minimumWords = getSettingInt('min_words', 3000, 1200, 5000);
     $content = ensureMinimumWordCount($content, $title, $minimumWords);
 
     $plainText = trim(strip_tags($content));
@@ -805,10 +1091,16 @@ function generateArticle($title) {
         $excerpt .= '...';
     }
 
+    $seo = buildSeoBlock($title, $excerpt);
+    $content .= "\n" . $seo['html_block'];
+
     return [
         'content' => $content,
         'excerpt' => $excerpt,
-        'image' => "https://loremflickr.com/800/450/car," . urlencode(strtolower($model))
+        'image' => "https://loremflickr.com/800/450/car," . urlencode(strtolower($model)),
+        'meta_title' => $seo['meta_title'],
+        'meta_description' => $seo['meta_description'],
+        'focus_keywords' => $seo['keywords'],
     ];
 }
 
@@ -821,6 +1113,20 @@ function saveArticle($title, $data) {
     $slug = generateUniqueSlug($title);
     $stmt = $pdo->prepare("INSERT INTO articles (title, slug, content, image, excerpt, published_at, category) VALUES (?,?,?,?,?,?,?)");
     $stmt->execute([$title, $slug, $data['content'], $data['image'], $data['excerpt'], date('Y-m-d H:i:s'), 'Auto']);
+    $articleId = (int)$pdo->lastInsertId();
+    writeArticleExportFiles($articleId, $slug, [
+        'id' => $articleId,
+        'title' => $title,
+        'slug' => $slug,
+        'content' => $data['content'],
+        'excerpt' => $data['excerpt'],
+        'image' => $data['image'] ?? null,
+        'meta_title' => $data['meta_title'] ?? null,
+        'meta_description' => $data['meta_description'] ?? null,
+        'focus_keywords' => $data['focus_keywords'] ?? [],
+        'published_at' => date('c'),
+    ]);
+
     return true;
 }
 

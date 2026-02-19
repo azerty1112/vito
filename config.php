@@ -26,10 +26,42 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS articles (
 $pdo->exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
 $pdo->exec("CREATE TABLE IF NOT EXISTS rss_sources (id INTEGER PRIMARY KEY, url TEXT)");
 $pdo->exec("CREATE TABLE IF NOT EXISTS web_sources (id INTEGER PRIMARY KEY, url TEXT)");
+$pdo->exec("CREATE TABLE IF NOT EXISTS url_cache (
+    url TEXT PRIMARY KEY,
+    body TEXT,
+    status_code INTEGER DEFAULT 0,
+    fetched_at INTEGER DEFAULT 0,
+    ttl_seconds INTEGER DEFAULT 900,
+    fail_count INTEGER DEFAULT 0,
+    blocked_until INTEGER DEFAULT 0
+)");
+$pdo->exec("CREATE TABLE IF NOT EXISTS scrape_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER DEFAULT 0,
+    locked_until INTEGER DEFAULT 0,
+    available_at INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT 0,
+    updated_at INTEGER DEFAULT 0
+)");
+$pdo->exec("CREATE TABLE IF NOT EXISTS article_exports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id INTEGER NOT NULL,
+    slug TEXT NOT NULL,
+    html_path TEXT NOT NULL,
+    json_path TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(article_id),
+    FOREIGN KEY(article_id) REFERENCES articles(id) ON DELETE CASCADE
+)");
 $pdo->exec("DELETE FROM rss_sources WHERE id NOT IN (SELECT MIN(id) FROM rss_sources GROUP BY url)");
 $pdo->exec("DELETE FROM web_sources WHERE id NOT IN (SELECT MIN(id) FROM web_sources GROUP BY url)");
+$pdo->exec("DELETE FROM scrape_queue WHERE id NOT IN (SELECT MIN(id) FROM scrape_queue GROUP BY workflow, source_url)");
 $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rss_sources_url ON rss_sources(url)");
 $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_web_sources_url ON web_sources(url)");
+$pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_scrape_queue_workflow_source ON scrape_queue(workflow, source_url)");
 
 // إعدادات افتراضية
 $defaults = [
@@ -40,7 +72,12 @@ $defaults = [
     'auto_publish_interval_minutes' => '180',
     'auto_publish_interval_seconds' => '10800',
     'auto_publish_last_run_at' => '1970-01-01 00:00:00',
-    'content_workflow' => 'rss'
+    'content_workflow' => 'rss',
+    'url_cache_ttl_seconds' => '900',
+    'workflow_batch_size' => '8',
+    'queue_retry_delay_seconds' => '60',
+    'queue_max_attempts' => '3',
+    'queue_requeue_seconds' => '900'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);

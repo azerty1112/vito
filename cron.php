@@ -13,6 +13,19 @@ if (PHP_SAPI !== 'cli') {
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         exit;
     }
+
+    $cronKey = trim((string)getSetting('cron_access_key', ''));
+    if ($cronKey !== '') {
+        $requestKey = trim((string)($_GET['key'] ?? $_POST['key'] ?? ''));
+        if (!hash_equals($cronKey, $requestKey)) {
+            http_response_code(401);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'invalid_cron_key',
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
 }
 
 $contentWorkflow = runSelectedContentWorkflow();
@@ -28,4 +41,9 @@ echo json_encode([
     'content_workflow_result' => $contentWorkflow,
     'scheduler' => $schedulerResult,
     'meta' => $meta,
+    'namecheap_cron_hint' => [
+        'recommended_interval_minutes' => 10,
+        'url' => getCronEndpointUrl(),
+        'with_key' => trim((string)getSetting('cron_access_key', '')) !== '' ? getCronEndpointUrl() . '?key=***' : null,
+    ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

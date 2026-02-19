@@ -16,6 +16,13 @@ Simple PHP automotive blog generator with:
 - Article management (view/delete).
 - CSRF protection for admin actions.
 - JSON API for public articles and site stats (`api.php`) including workflow health summary.
+- Smart scalable title generation with SEO modifiers.
+- URL fetching with anti-block behavior (custom UA + retry backoff) and SQLite caching.
+- Queue-based scraping to avoid source overload.
+- Automatic queue requeue window so sources are crawled again safely (without infinite queue growth).
+- Stale-cache fallback during temporary source failures to keep workflow resilient.
+- Content pipeline for cleaning/normalizing titles, merge+deduplicate, and SEO block generation.
+- Multi-format persistence for each article (DB + exported HTML + exported JSON in `data/exports/`).
 
 ## Quick start
 
@@ -82,6 +89,12 @@ You can also run it from server CLI:
 php cron.php
 ```
 
+Optional (recommended for shared hosting like Namecheap): set a cron key in `settings` (`cron_access_key`) and call:
+
+```
+https://your-domain.com/cron.php?key=YOUR_SECRET_KEY
+```
+
 
 ### Better article quality
 
@@ -90,4 +103,3 @@ Generated articles now include:
 - a buyer persona section (who should buy),
 - an FAQ block,
 - and dynamic minimum word count based on the `min_words` setting.
-
