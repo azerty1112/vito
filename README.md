@@ -22,6 +22,21 @@ Simple PHP automotive blog generator with:
 - Content pipeline for cleaning/normalizing titles, merge+deduplicate, and SEO block generation.
 - Multi-format persistence for each article (DB + exported HTML + exported JSON in `data/exports/`).
 
+## Production pipeline (10 steps)
+
+1. Generate smart + scalable title templates for automotive intent keywords.
+2. Fetch URLs with anti-block behavior (custom user-agent + retry + cache).
+3. Queue source URLs to prevent source overload.
+4. Scrape via Symfony DomCrawler with timeout and configurable UA.
+5. Clean and normalize extracted titles.
+6. Merge and deduplicate title candidates before generation.
+7. Expand article body with a 3000-word target (configurable via `min_words`).
+8. Apply SEO optimization block (focus keywords + meta description).
+9. Save article in multiple formats (HTML + JSON + SQLite DB).
+10. Automate publishing through `cron.php` (shared-hosting/Namecheap friendly).
+
+You can tune fetch timeout and user-agent from `admin.php` (**Publishing Settings**) without editing code.
+
 ## Quick start
 
 Install PHP dependencies (required for Symfony feed crawling):
