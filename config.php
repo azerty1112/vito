@@ -46,6 +46,8 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS scrape_queue (
     created_at INTEGER DEFAULT 0,
     updated_at INTEGER DEFAULT 0
 )");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_scrape_queue_workflow_status_available ON scrape_queue(workflow, status, available_at, locked_until)");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_scrape_queue_source_url ON scrape_queue(source_url)");
 $pdo->exec("CREATE TABLE IF NOT EXISTS article_exports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     article_id INTEGER NOT NULL,
@@ -73,10 +75,13 @@ $defaults = [
     'content_workflow' => 'rss',
     'url_cache_ttl_seconds' => '900',
     'fetch_timeout_seconds' => '12',
+    'fetch_retry_attempts' => '3',
+    'fetch_retry_backoff_ms' => '350',
     'fetch_user_agent' => 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)',
     'workflow_batch_size' => '8',
     'queue_retry_delay_seconds' => '60',
-    'queue_max_attempts' => '3'
+    'queue_max_attempts' => '3',
+    'queue_source_cooldown_seconds' => '180'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);
