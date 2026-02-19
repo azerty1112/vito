@@ -4,6 +4,8 @@ Simple PHP automotive blog generator with:
 
 - Public homepage listing generated articles.
 - Search by title/excerpt.
+- Quick category chips + view switcher (grid/list).
+- Configurable public pagination size (6/9/12/18 per page).
 - Pagination on public article list.
 - Single article view with related posts and estimated reading time.
 - Admin panel for manual and fully automatic AI article generation (auto title + scheduled publishing).
@@ -13,7 +15,7 @@ Simple PHP automotive blog generator with:
 - RSS source management (add/remove).
 - Article management (view/delete).
 - CSRF protection for admin actions.
-- JSON API for public articles and site stats (`api.php`).
+- JSON API for public articles and site stats (`api.php`) including workflow health summary.
 
 ## Quick start
 
