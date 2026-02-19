@@ -63,7 +63,7 @@ $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_web_sources_url ON web_sources
 
 // إعدادات افتراضية
 $defaults = [
-    'min_words' => '1200',
+    'min_words' => '3000',
     'auto_publish' => '1',
     'daily_limit' => '5',
     'auto_ai_enabled' => '1',
@@ -72,12 +72,31 @@ $defaults = [
     'auto_publish_last_run_at' => '1970-01-01 00:00:00',
     'content_workflow' => 'rss',
     'url_cache_ttl_seconds' => '900',
+    'fetch_timeout_seconds' => '12',
+    'fetch_user_agent' => 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)',
     'workflow_batch_size' => '8',
     'queue_retry_delay_seconds' => '60',
     'queue_max_attempts' => '3'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);
+}
+
+// one-time migration for installs created before the scalable pipeline defaults
+$migrationKey = 'pipeline_defaults_v2_applied';
+$migrationStmt = $pdo->prepare("SELECT value FROM settings WHERE key = ? LIMIT 1");
+$migrationStmt->execute([$migrationKey]);
+$migrationApplied = $migrationStmt->fetchColumn();
+if ($migrationApplied === false) {
+    $currentMinWords = (int)$pdo->query("SELECT value FROM settings WHERE key = 'min_words' LIMIT 1")->fetchColumn();
+    if ($currentMinWords <= 1200) {
+        $pdo->prepare("UPDATE settings SET value = '3000' WHERE key = 'min_words'")->execute();
+    }
+
+    $pdo->prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('fetch_timeout_seconds', '12')")->execute();
+    $pdo->prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('fetch_user_agent', 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)')")->execute();
+    $pdo->prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+        ->execute([$migrationKey, date('Y-m-d H:i:s')]);
 }
 
 // مصادر RSS افتراضية

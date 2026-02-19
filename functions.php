@@ -16,7 +16,7 @@ function e($text) {
     return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
 }
 
-function fetchUrlBody($url, $timeoutSeconds = 10) {
+function fetchUrlBody($url, $timeoutSeconds = null) {
     $url = trim((string)$url);
     if ($url === '') {
         return null;
@@ -27,9 +27,13 @@ function fetchUrlBody($url, $timeoutSeconds = 10) {
         return $cacheHit;
     }
 
+    $timeoutSeconds = $timeoutSeconds === null
+        ? getSettingInt('fetch_timeout_seconds', 12, 3, 45)
+        : max(1, (int)$timeoutSeconds);
+
     $context = stream_context_create([
         'http' => [
-            'timeout' => max(1, (int)$timeoutSeconds),
+            'timeout' => $timeoutSeconds,
             'ignore_errors' => true,
             'user_agent' => getFetcherUserAgent(),
         ],
@@ -53,7 +57,8 @@ function fetchUrlBody($url, $timeoutSeconds = 10) {
 }
 
 function getFetcherUserAgent() {
-    return 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)';
+    $ua = trim((string)getSetting('fetch_user_agent', 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)'));
+    return $ua !== '' ? $ua : 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)';
 }
 
 function extractHttpStatusCode(array $headers) {
@@ -677,25 +682,31 @@ function buildFaqSection($title, $isEV) {
 function generateAutoTitle() {
     $year = (int)date('Y') + rand(0, 1);
     $brands = ['Toyota', 'BMW', 'Mercedes', 'Audi', 'Porsche', 'Tesla', 'Hyundai', 'Kia', 'Ford', 'Nissan', 'Volvo', 'Lexus'];
-    $models = ['SUV', 'Sedan', 'Coupe', 'EV Crossover', 'Hybrid SUV', 'Performance Hatchback', 'Electric Sedan', 'Luxury Wagon'];
-    $seoModifiers = ['Review', 'Specs', 'Price', 'Comparison', 'Buying Guide'];
+    $models = ['SUV', 'Sedan', 'Coupe', 'EV Crossover', 'Hybrid SUV', 'Performance Hatchback', 'Electric Sedan', 'Luxury Wagon', 'Premium Crossover'];
+    $seoModifiers = ['Review', 'Specs', 'Price', 'Comparison', 'Buying Guide', 'Ownership Cost'];
+    $audience = ['Smart Buyers', 'First-Time Premium Buyers', 'Tech-Focused Drivers', 'Family Buyers'];
     $angles = [
         'Full Review and Buyer Guide',
         'Long-Term Ownership Analysis',
         'Real-World Efficiency Test',
         'Daily Driving Impression',
         'Smart Technology Deep Dive',
-        'Comparison and Value Breakdown'
+        'Comparison and Value Breakdown',
+        'Reliability, Resale, and Total Cost Breakdown'
+    ];
+    $brand = $brands[array_rand($brands)];
+    $model = $models[array_rand($models)];
+    $modifier = $seoModifiers[array_rand($seoModifiers)];
+    $angle = $angles[array_rand($angles)];
+    $targetAudience = $audience[array_rand($audience)];
+
+    $templates = [
+        "{$year} {$brand} {$model} {$modifier}: {$angle} for {$targetAudience}",
+        "{$year} {$brand} {$model} {$modifier} — {$angle} ({$targetAudience})",
+        "{$year} {$brand} {$model}: {$modifier} + {$angle}",
     ];
 
-    return sprintf(
-        '%d %s %s %s: %s for Smart Buyers',
-        $year,
-        $brands[array_rand($brands)],
-        $models[array_rand($models)],
-        $seoModifiers[array_rand($seoModifiers)],
-        $angles[array_rand($angles)]
-    );
+    return $templates[array_rand($templates)];
 }
 
 function generateUniqueAutoTitle($maxAttempts = 12) {

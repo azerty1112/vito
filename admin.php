@@ -118,6 +118,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['update_fetch_settings'])) {
+        $timeout = (int)($_POST['fetch_timeout_seconds'] ?? 12);
+        $timeout = max(3, min(45, $timeout));
+        $userAgent = trim((string)($_POST['fetch_user_agent'] ?? ''));
+        if ($userAgent === '') {
+            $userAgent = 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)';
+        }
+        if (mb_strlen($userAgent) > 255) {
+            $userAgent = mb_substr($userAgent, 0, 255);
+        }
+
+        setSetting('fetch_timeout_seconds', (string)$timeout);
+        setSetting('fetch_user_agent', $userAgent);
+        $_SESSION['flash_message'] = 'Fetcher timeout and user-agent updated.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
 
     if (isset($_POST['update_auto_scheduler'])) {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
@@ -393,6 +412,8 @@ $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColum
 $totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
+$fetchTimeoutSeconds = getSettingInt('fetch_timeout_seconds', 12, 3, 45);
+$fetchUserAgent = (string)getSetting('fetch_user_agent', 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)');
 $selectedWorkflow = getSelectedContentWorkflow();
 $workflowSummary = getContentWorkflowSummary();
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
@@ -574,6 +595,22 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Controls max articles generated per selected workflow run.</small>
+
+                    <form method="post" class="row g-2 align-items-end mt-3">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-4">
+                            <label class="form-label">Fetch Timeout (s)</label>
+                            <input type="number" name="fetch_timeout_seconds" class="form-control" min="3" max="45" value="<?= (int)$fetchTimeoutSeconds ?>">
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label">Fetcher User-Agent</label>
+                            <input type="text" name="fetch_user_agent" class="form-control" maxlength="255" value="<?= e($fetchUserAgent) ?>">
+                        </div>
+                        <div class="col-12">
+                            <button name="update_fetch_settings" value="1" class="btn btn-outline-light w-100">Update Fetch Settings</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary">Used by RSS/Web workflows to reduce blocking with configurable timeout + UA.</small>
 
                     <form method="post" class="row g-2 align-items-end mt-1">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
