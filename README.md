@@ -17,16 +17,16 @@ Simple PHP automotive blog generator with:
 - CSRF protection for admin actions.
 - JSON API for public articles and site stats (`api.php`) including workflow health summary.
 - Smart scalable title generation with SEO modifiers.
-- URL fetching with anti-block behavior (custom UA + retry backoff) and SQLite caching.
-- Queue-based scraping to avoid source overload.
+- URL fetching with anti-block behavior (custom UA + retry backoff + jitter) and SQLite caching.
+- Queue-based scraping with source cooldown + stale-lock recovery to avoid source overload.
 - Content pipeline for cleaning/normalizing titles, merge+deduplicate, and SEO block generation.
 - Multi-format persistence for each article (DB + exported HTML + exported JSON in `data/exports/`).
 
 ## Production pipeline (10 steps)
 
 1. Generate smart + scalable title templates for automotive intent keywords.
-2. Fetch URLs with anti-block behavior (custom user-agent + retry + cache).
-3. Queue source URLs to prevent source overload.
+2. Fetch URLs with anti-block behavior (custom user-agent + retry/backoff + cache).
+3. Queue source URLs with cooldown + stale lock recovery to prevent source overload.
 4. Scrape via Symfony DomCrawler with timeout and configurable UA.
 5. Clean and normalize extracted titles.
 6. Merge and deduplicate title candidates before generation.
@@ -36,6 +36,8 @@ Simple PHP automotive blog generator with:
 10. Automate publishing through `cron.php` (shared-hosting/Namecheap friendly).
 
 You can tune fetch timeout and user-agent from `admin.php` (**Publishing Settings**) without editing code.
+
+You can now also tune retry attempts, retry backoff, and per-source cooldown from `admin.php` (**Publishing Settings**) for safer large-scale crawling.
 
 ## Quick start
 

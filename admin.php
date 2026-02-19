@@ -121,6 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_fetch_settings'])) {
         $timeout = (int)($_POST['fetch_timeout_seconds'] ?? 12);
         $timeout = max(3, min(45, $timeout));
+        $retryAttempts = (int)($_POST['fetch_retry_attempts'] ?? 3);
+        $retryAttempts = max(1, min(5, $retryAttempts));
+        $retryBackoffMs = (int)($_POST['fetch_retry_backoff_ms'] ?? 350);
+        $retryBackoffMs = max(100, min(3000, $retryBackoffMs));
+        $sourceCooldown = (int)($_POST['queue_source_cooldown_seconds'] ?? 180);
+        $sourceCooldown = max(30, min(7200, $sourceCooldown));
         $userAgent = trim((string)($_POST['fetch_user_agent'] ?? ''));
         if ($userAgent === '') {
             $userAgent = 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)';
@@ -130,8 +136,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         setSetting('fetch_timeout_seconds', (string)$timeout);
+        setSetting('fetch_retry_attempts', (string)$retryAttempts);
+        setSetting('fetch_retry_backoff_ms', (string)$retryBackoffMs);
+        setSetting('queue_source_cooldown_seconds', (string)$sourceCooldown);
         setSetting('fetch_user_agent', $userAgent);
-        $_SESSION['flash_message'] = 'Fetcher timeout and user-agent updated.';
+        $_SESSION['flash_message'] = 'Fetcher timeout, retries, cooldown, and user-agent updated.';
         $_SESSION['flash_type'] = 'success';
         header('Location: admin.php');
         exit;
@@ -413,6 +422,9 @@ $totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchCo
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
 $dailyLimit = (int)getSetting('daily_limit', 5);
 $fetchTimeoutSeconds = getSettingInt('fetch_timeout_seconds', 12, 3, 45);
+$fetchRetryAttempts = getSettingInt('fetch_retry_attempts', 3, 1, 5);
+$fetchRetryBackoffMs = getSettingInt('fetch_retry_backoff_ms', 350, 100, 3000);
+$queueSourceCooldownSeconds = getSettingInt('queue_source_cooldown_seconds', 180, 30, 7200);
 $fetchUserAgent = (string)getSetting('fetch_user_agent', 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)');
 $selectedWorkflow = getSelectedContentWorkflow();
 $workflowSummary = getContentWorkflowSummary();
@@ -602,7 +614,19 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                             <label class="form-label">Fetch Timeout (s)</label>
                             <input type="number" name="fetch_timeout_seconds" class="form-control" min="3" max="45" value="<?= (int)$fetchTimeoutSeconds ?>">
                         </div>
-                        <div class="col-8">
+                        <div class="col-4">
+                            <label class="form-label">Retry Attempts</label>
+                            <input type="number" name="fetch_retry_attempts" class="form-control" min="1" max="5" value="<?= (int)$fetchRetryAttempts ?>">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Retry Backoff (ms)</label>
+                            <input type="number" name="fetch_retry_backoff_ms" class="form-control" min="100" max="3000" value="<?= (int)$fetchRetryBackoffMs ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Source Cooldown (s)</label>
+                            <input type="number" name="queue_source_cooldown_seconds" class="form-control" min="30" max="7200" value="<?= (int)$queueSourceCooldownSeconds ?>">
+                        </div>
+                        <div class="col-6">
                             <label class="form-label">Fetcher User-Agent</label>
                             <input type="text" name="fetch_user_agent" class="form-control" maxlength="255" value="<?= e($fetchUserAgent) ?>">
                         </div>
@@ -610,7 +634,7 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                             <button name="update_fetch_settings" value="1" class="btn btn-outline-light w-100">Update Fetch Settings</button>
                         </div>
                     </form>
-                    <small class="text-secondary">Used by RSS/Web workflows to reduce blocking with configurable timeout + UA.</small>
+                    <small class="text-secondary">Anti-block controls: timeout, retries with backoff, URL queue cooldown, and custom UA.</small>
 
                     <form method="post" class="row g-2 align-items-end mt-1">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">

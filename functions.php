@@ -31,25 +31,35 @@ function fetchUrlBody($url, $timeoutSeconds = null) {
         ? getSettingInt('fetch_timeout_seconds', 12, 3, 45)
         : max(1, (int)$timeoutSeconds);
 
-    $context = stream_context_create([
-        'http' => [
-            'timeout' => $timeoutSeconds,
-            'ignore_errors' => true,
-            'user_agent' => getFetcherUserAgent(),
-        ],
-        'ssl' => [
-            'verify_peer' => true,
-            'verify_peer_name' => true,
-        ],
-    ]);
+    $retryAttempts = getSettingInt('fetch_retry_attempts', 3, 1, 5);
+    $backoffMs = getSettingInt('fetch_retry_backoff_ms', 350, 100, 3000);
 
-    $body = @file_get_contents($url, false, $context);
-    $statusCode = extractHttpStatusCode($http_response_header ?? []);
-    $ok = is_string($body) && $body !== '' && $statusCode >= 200 && $statusCode < 400;
+    for ($attempt = 1; $attempt <= $retryAttempts; $attempt++) {
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => $timeoutSeconds,
+                'ignore_errors' => true,
+                'user_agent' => getFetcherUserAgent(),
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
 
-    if ($ok) {
-        cacheUrlBody($url, $body, $statusCode, true);
-        return $body;
+        $body = @file_get_contents($url, false, $context);
+        $statusCode = extractHttpStatusCode($http_response_header ?? []);
+        $ok = is_string($body) && $body !== '' && $statusCode >= 200 && $statusCode < 400;
+
+        if ($ok) {
+            cacheUrlBody($url, $body, $statusCode, true);
+            return $body;
+        }
+
+        if ($attempt < $retryAttempts) {
+            $jitterMs = random_int(0, 120);
+            usleep(($backoffMs * $attempt + $jitterMs) * 1000);
+        }
     }
 
     cacheUrlBody($url, is_string($body) ? $body : '', $statusCode, false);
@@ -317,9 +327,27 @@ function pullWorkflowQueueItems($workflow, $limit) {
     $limit = max(1, (int)$limit);
     $pdo = db_connect();
     $now = time();
+    $sourceCooldown = getSettingInt('queue_source_cooldown_seconds', 180, 30, 7200);
 
-    $stmt = $pdo->prepare('SELECT id, source_url FROM scrape_queue WHERE workflow = ? AND status = "pending" AND available_at <= ? AND locked_until <= ? ORDER BY id ASC LIMIT ' . $limit);
-    $stmt->execute([$workflow, $now, $now]);
+    resetStaleQueueLocks($workflow);
+
+    $sql = 'SELECT id, source_url
+        FROM scrape_queue
+        WHERE workflow = ?
+          AND status = "pending"
+          AND available_at <= ?
+          AND locked_until <= ?
+          AND source_url NOT IN (
+              SELECT source_url
+              FROM scrape_queue
+              WHERE workflow = ?
+                AND status IN ("done", "processing")
+                AND updated_at >= ?
+          )
+        ORDER BY id ASC
+        LIMIT ' . $limit;
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$workflow, $now, $now, $workflow, $now - $sourceCooldown]);
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $lockUntil = $now + 120;
@@ -329,6 +357,17 @@ function pullWorkflowQueueItems($workflow, $limit) {
     }
 
     return $items;
+}
+
+function resetStaleQueueLocks($workflow) {
+    $workflow = $workflow === 'web' ? 'web' : 'rss';
+    $pdo = db_connect();
+    $now = time();
+
+    $stmt = $pdo->prepare('UPDATE scrape_queue
+        SET status = "pending", locked_until = 0, updated_at = ?
+        WHERE workflow = ? AND status = "processing" AND locked_until > 0 AND locked_until <= ?');
+    $stmt->execute([$now, $workflow, $now]);
 }
 
 function markQueueItemDone($id) {
