@@ -357,6 +357,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['bulk_update_articles'])) {
+        $bulkAction = trim((string)($_POST['bulk_article_action'] ?? ''));
+        $selectedIds = array_map('intval', $_POST['article_ids'] ?? []);
+        $selectedIds = array_values(array_filter(array_unique($selectedIds), fn($id) => $id > 0));
+
+        if (!$selectedIds) {
+            $_SESSION['flash_message'] = 'Please select at least one article.';
+            $_SESSION['flash_type'] = 'warning';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+
+        if ($bulkAction === 'delete') {
+            $stmt = $pdo->prepare("DELETE FROM articles WHERE id IN ($placeholders)");
+            $stmt->execute($selectedIds);
+            $_SESSION['flash_message'] = 'Selected articles deleted.';
+            $_SESSION['flash_type'] = 'warning';
+            header('Location: admin.php');
+            exit;
+        }
+
+        if ($bulkAction === 'set_category') {
+            $bulkCategory = trim((string)($_POST['bulk_category'] ?? ''));
+            $params = array_merge([$bulkCategory], $selectedIds);
+            $stmt = $pdo->prepare("UPDATE articles SET category = ? WHERE id IN ($placeholders)");
+            $stmt->execute($params);
+            $_SESSION['flash_message'] = 'Category updated for selected articles.';
+            $_SESSION['flash_type'] = 'success';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $_SESSION['flash_message'] = 'Invalid bulk action selected.';
+        $_SESSION['flash_type'] = 'danger';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['update_rss'])) {
+        $rssId = (int)($_POST['rss_id'] ?? 0);
+        $rssUrl = trim((string)($_POST['rss_url'] ?? ''));
+        if ($rssId <= 0 || !filter_var($rssUrl, FILTER_VALIDATE_URL)) {
+            $_SESSION['flash_message'] = 'Invalid RSS source update request.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $duplicateStmt = $pdo->prepare("SELECT id FROM rss_sources WHERE url = ? AND id != ? LIMIT 1");
+        $duplicateStmt->execute([$rssUrl, $rssId]);
+        if ($duplicateStmt->fetchColumn()) {
+            $_SESSION['flash_message'] = 'RSS URL already exists.';
+            $_SESSION['flash_type'] = 'warning';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $stmt = $pdo->prepare("UPDATE rss_sources SET url = ? WHERE id = ?");
+        $stmt->execute([$rssUrl, $rssId]);
+        $_SESSION['flash_message'] = 'RSS source updated.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['update_web'])) {
+        $webId = (int)($_POST['web_id'] ?? 0);
+        $webUrl = trim((string)($_POST['web_url'] ?? ''));
+        if ($webId <= 0 || !filter_var($webUrl, FILTER_VALIDATE_URL)) {
+            $_SESSION['flash_message'] = 'Invalid website source update request.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $duplicateStmt = $pdo->prepare("SELECT id FROM web_sources WHERE url = ? AND id != ? LIMIT 1");
+        $duplicateStmt->execute([$webUrl, $webId]);
+        if ($duplicateStmt->fetchColumn()) {
+            $_SESSION['flash_message'] = 'Website URL already exists.';
+            $_SESSION['flash_type'] = 'warning';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $stmt = $pdo->prepare("UPDATE web_sources SET url = ? WHERE id = ?");
+        $stmt->execute([$webUrl, $webId]);
+        $_SESSION['flash_message'] = 'Website source updated.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['delete_web'])) {
         $stmt = $pdo->prepare("DELETE FROM web_sources WHERE id = ?");
         $stmt->execute([(int)$_POST['delete_web']]);
@@ -379,6 +473,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM rss_sources WHERE id = ?");
         $stmt->execute([(int)$_POST['delete_rss']]);
         $_SESSION['flash_message'] = 'RSS source removed.';
+        $_SESSION['flash_type'] = 'warning';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['save_article'])) {
+        $articleId = (int)($_POST['article_id'] ?? 0);
+        $title = trim((string)($_POST['article_title'] ?? ''));
+        $slugInput = trim((string)($_POST['article_slug'] ?? ''));
+        $slug = $slugInput !== '' ? slugify($slugInput) : slugify($title);
+        $category = trim((string)($_POST['article_category'] ?? ''));
+        $excerpt = trim((string)($_POST['article_excerpt'] ?? ''));
+        $image = trim((string)($_POST['article_image'] ?? ''));
+        $content = trim((string)($_POST['article_content'] ?? ''));
+
+        if ($articleId <= 0 || $title === '' || $content === '' || $slug === '') {
+            $_SESSION['flash_message'] = 'Article update failed. Title, slug, and content are required.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $duplicateStmt = $pdo->prepare("SELECT id FROM articles WHERE (title = :title OR slug = :slug) AND id != :id LIMIT 1");
+        $duplicateStmt->execute([
+            'title' => $title,
+            'slug' => $slug,
+            'id' => $articleId,
+        ]);
+        if ($duplicateStmt->fetchColumn()) {
+            $_SESSION['flash_message'] = 'Article update failed. Another article already uses this title or slug.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $stmt = $pdo->prepare("UPDATE articles SET title = ?, slug = ?, category = ?, excerpt = ?, image = ?, content = ? WHERE id = ?");
+        $stmt->execute([$title, $slug, $category, $excerpt, $image, $content, $articleId]);
+        $_SESSION['flash_message'] = 'Article updated successfully.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['save_setting'])) {
+        $settingKey = trim((string)($_POST['setting_key'] ?? ''));
+        $settingValue = trim((string)($_POST['setting_value'] ?? ''));
+        $originalKey = trim((string)($_POST['original_setting_key'] ?? ''));
+
+        if (!preg_match('/^[a-z0-9_\-.]{2,80}$/i', $settingKey)) {
+            $_SESSION['flash_message'] = 'Invalid setting key. Use letters, numbers, dots, dashes, and underscores only.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $protectedSettings = ['pipeline_defaults_v2_applied'];
+        if ($originalKey !== '' && in_array($originalKey, $protectedSettings, true) && $originalKey !== $settingKey) {
+            $_SESSION['flash_message'] = 'This system setting key cannot be renamed.';
+            $_SESSION['flash_type'] = 'warning';
+            header('Location: admin.php');
+            exit;
+        }
+
+        if ($originalKey !== '' && $originalKey !== $settingKey) {
+            $existsStmt = $pdo->prepare("SELECT key FROM settings WHERE key = ? LIMIT 1");
+            $existsStmt->execute([$settingKey]);
+            if ($existsStmt->fetchColumn()) {
+                $_SESSION['flash_message'] = 'Cannot rename setting. Target key already exists.';
+                $_SESSION['flash_type'] = 'danger';
+                header('Location: admin.php');
+                exit;
+            }
+
+            $renameStmt = $pdo->prepare("UPDATE settings SET key = ?, value = ? WHERE key = ?");
+            $renameStmt->execute([$settingKey, $settingValue, $originalKey]);
+        } else {
+            setSetting($settingKey, $settingValue);
+        }
+
+        $_SESSION['flash_message'] = "Setting '{$settingKey}' saved.";
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['delete_setting'])) {
+        $settingKey = trim((string)($_POST['delete_setting'] ?? ''));
+        $protectedSettings = ['pipeline_defaults_v2_applied'];
+        if (in_array($settingKey, $protectedSettings, true)) {
+            $_SESSION['flash_message'] = 'This system setting is protected and cannot be deleted.';
+            $_SESSION['flash_type'] = 'warning';
+            header('Location: admin.php');
+            exit;
+        }
+
+        $stmt = $pdo->prepare("DELETE FROM settings WHERE key = ?");
+        $stmt->execute([$settingKey]);
+        $_SESSION['flash_message'] = 'Setting removed.';
         $_SESSION['flash_type'] = 'warning';
         header('Location: admin.php');
         exit;
@@ -441,7 +633,7 @@ $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01
 $cronUrl = getCronEndpointUrl();
 $categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-$articleSql = "SELECT id, title, slug, category, published_at FROM articles";
+$articleSql = "SELECT id, title, slug, category, excerpt, image, content, published_at FROM articles";
 $articleParams = [];
 $articleClauses = [];
 if ($articleSearch !== '') {
@@ -490,6 +682,21 @@ foreach ($webParams as $key => $value) {
 }
 $webStmt->execute();
 $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$settingsSearch = trim($_GET['qs'] ?? '');
+$settingsSql = "SELECT key, value FROM settings";
+$settingsParams = [];
+if ($settingsSearch !== '') {
+    $settingsSql .= " WHERE key LIKE :setting_key";
+    $settingsParams['setting_key'] = '%' . $settingsSearch . '%';
+}
+$settingsSql .= " ORDER BY key ASC";
+$settingsStmt = $pdo->prepare($settingsSql);
+foreach ($settingsParams as $key => $value) {
+    $settingsStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
+$settingsStmt->execute();
+$settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -839,6 +1046,11 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                         <i class="bi bi-globe2 me-1"></i> Web Sources
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="settings-tab" data-bs-toggle="pill" data-bs-target="#settings-pane" type="button" role="tab" aria-controls="settings-pane" aria-selected="false">
+                        <i class="bi bi-gear me-1"></i> Settings
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content">
@@ -859,25 +1071,83 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                                 </form>
                             </div>
 
+                            <form method="post" class="row g-2 align-items-end mb-3" id="articlesBulkForm">
+                                <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                <div class="col-md-5">
+                                    <label class="form-label">Bulk Action</label>
+                                    <select class="form-select form-select-sm" name="bulk_article_action">
+                                        <option value="set_category">Set Category</option>
+                                        <option value="delete">Delete Selected</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Category (for Set Category)</label>
+                                    <input type="text" class="form-control form-control-sm" name="bulk_category" placeholder="e.g. Reviews">
+                                </div>
+                                <div class="col-md-2">
+                                    <button name="bulk_update_articles" value="1" class="btn btn-outline-warning w-100 btn-sm">Apply</button>
+                                </div>
+                            </form>
+
                             <div class="table-responsive rounded shadow-sm">
                                 <table class="table table-dark table-striped align-middle mb-0">
                                     <thead>
-                                    <tr><th>Title</th><th>Category</th><th>Date</th><th>Action</th></tr>
+                                    <tr><th style="width:42px;"><input type="checkbox" id="select-all-articles" class="form-check-input"></th><th>Title</th><th>Category</th><th>Date</th><th>Action</th></tr>
                                     </thead>
                                     <tbody>
                                     <?php if (!$articles): ?>
-                                        <tr><td colspan="4" class="text-center text-secondary">No articles found.</td></tr>
+                                        <tr><td colspan="5" class="text-center text-secondary">No articles found.</td></tr>
                                     <?php else: ?>
                                         <?php foreach ($articles as $row): ?>
                                             <tr>
-                                                <td><?= e($row['title']) ?></td>
+                                                <td><input type="checkbox" class="form-check-input article-check" name="article_ids[]" value="<?= (int)$row['id'] ?>" form="articlesBulkForm"></td>
+                                                <td>
+                                                    <div class="fw-semibold"><?= e($row['title']) ?></div>
+                                                    <small class="text-secondary">/<?= e($row['slug']) ?></small>
+                                                </td>
                                                 <td><span class="badge text-bg-secondary"><?= e($row['category'] ?: 'General') ?></span></td>
                                                 <td><?= e($row['published_at']) ?></td>
-                                                <td class="d-flex gap-2">
+                                                <td class="d-flex flex-wrap gap-2">
                                                     <a href="index.php?slug=<?= e($row['slug']) ?>" target="_blank" class="btn btn-sm btn-info">View</a>
+                                                    <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#edit-article-<?= (int)$row['id'] ?>" aria-expanded="false">Edit</button>
                                                     <form method="post" onsubmit="return confirm('Delete this article?')">
                                                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                                                         <button name="delete_article" value="<?= (int)$row['id'] ?>" class="btn btn-sm btn-outline-danger">Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            <tr class="collapse" id="edit-article-<?= (int)$row['id'] ?>">
+                                                <td colspan="5">
+                                                    <form method="post" class="row g-2">
+                                                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                                        <input type="hidden" name="article_id" value="<?= (int)$row['id'] ?>">
+                                                        <div class="col-12">
+                                                            <label class="form-label">Title</label>
+                                                            <input type="text" name="article_title" class="form-control" required value="<?= e($row['title']) ?>">
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Slug</label>
+                                                            <input type="text" name="article_slug" class="form-control" required value="<?= e($row['slug']) ?>">
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Category</label>
+                                                            <input type="text" name="article_category" class="form-control" value="<?= e($row['category']) ?>">
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <label class="form-label">Image URL</label>
+                                                            <input type="url" name="article_image" class="form-control" value="<?= e($row['image']) ?>">
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <label class="form-label">Excerpt</label>
+                                                            <textarea name="article_excerpt" class="form-control" rows="2"><?= e($row['excerpt']) ?></textarea>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <label class="form-label">Content (HTML)</label>
+                                                            <textarea name="article_content" class="form-control" rows="8" required><?= e($row['content']) ?></textarea>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <button name="save_article" value="1" class="btn btn-success w-100">Save Changes</button>
+                                                        </div>
                                                     </form>
                                                 </td>
                                             </tr>
@@ -908,9 +1178,24 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                                     <?php foreach ($rssRows as $rss): ?>
                                         <li class="list-group-item d-flex justify-content-between align-items-center">
                                             <span class="text-break pe-2"><?= e($rss['url']) ?></span>
-                                            <form method="post" onsubmit="return confirm('Remove this source?')">
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#edit-rss-<?= (int)$rss['id'] ?>" aria-expanded="false">Edit</button>
+                                                <form method="post" onsubmit="return confirm('Remove this source?')">
+                                                    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                                    <button name="delete_rss" value="<?= (int)$rss['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                        <li class="list-group-item collapse" id="edit-rss-<?= (int)$rss['id'] ?>">
+                                            <form method="post" class="row g-2 align-items-center">
                                                 <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                                                <button name="delete_rss" value="<?= (int)$rss['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                <input type="hidden" name="rss_id" value="<?= (int)$rss['id'] ?>">
+                                                <div class="col-md-10">
+                                                    <input type="url" name="rss_url" class="form-control form-control-sm" required value="<?= e($rss['url']) ?>">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <button name="update_rss" value="1" class="btn btn-sm btn-outline-success w-100">Save</button>
+                                                </div>
                                             </form>
                                         </li>
                                     <?php endforeach; ?>
@@ -938,9 +1223,24 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                                     <?php foreach ($webRows as $web): ?>
                                         <li class="list-group-item d-flex justify-content-between align-items-center">
                                             <span class="text-break pe-2"><?= e($web['url']) ?></span>
-                                            <form method="post" onsubmit="return confirm('Remove this source?')">
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#edit-web-<?= (int)$web['id'] ?>" aria-expanded="false">Edit</button>
+                                                <form method="post" onsubmit="return confirm('Remove this source?')">
+                                                    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                                    <button name="delete_web" value="<?= (int)$web['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                        <li class="list-group-item collapse" id="edit-web-<?= (int)$web['id'] ?>">
+                                            <form method="post" class="row g-2 align-items-center">
                                                 <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                                                <button name="delete_web" value="<?= (int)$web['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                <input type="hidden" name="web_id" value="<?= (int)$web['id'] ?>">
+                                                <div class="col-md-10">
+                                                    <input type="url" name="web_url" class="form-control form-control-sm" required value="<?= e($web['url']) ?>">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <button name="update_web" value="1" class="btn btn-sm btn-outline-success w-100">Save</button>
+                                                </div>
                                             </form>
                                         </li>
                                     <?php endforeach; ?>
@@ -949,10 +1249,75 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </div>
                 </div>
+
+                <div class="tab-pane fade" id="settings-pane" role="tabpanel" aria-labelledby="settings-tab" tabindex="0">
+                    <div class="card section-card mt-0">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">All Runtime Settings</h5>
+                                <form method="get" class="d-flex gap-2">
+                                    <input type="text" name="qs" class="form-control form-control-sm" placeholder="Search key" value="<?= e($settingsSearch) ?>">
+                                    <button class="btn btn-sm btn-outline-light">Search</button>
+                                </form>
+                            </div>
+
+                            <form method="post" class="row g-2 mb-3">
+                                <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                <div class="col-md-4">
+                                    <input type="text" name="setting_key" class="form-control" placeholder="setting_key" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="text" name="setting_value" class="form-control" placeholder="value">
+                                </div>
+                                <div class="col-md-2">
+                                    <button name="save_setting" value="1" class="btn btn-outline-success w-100">Save</button>
+                                </div>
+                            </form>
+
+                            <ul class="list-group shadow-sm">
+                                <?php if (!$settingsRows): ?>
+                                    <li class="list-group-item text-center text-secondary">No settings found.</li>
+                                <?php else: ?>
+                                    <?php foreach ($settingsRows as $setting): ?>
+                                        <li class="list-group-item">
+                                            <form method="post" class="row g-2 align-items-center">
+                                                <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                                <input type="hidden" name="original_setting_key" value="<?= e($setting['key']) ?>">
+                                                <div class="col-md-4">
+                                                    <input type="text" name="setting_key" class="form-control form-control-sm" value="<?= e($setting['key']) ?>" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <input type="text" name="setting_value" class="form-control form-control-sm" value="<?= e($setting['value']) ?>">
+                                                </div>
+                                                <div class="col-md-2 d-flex gap-2">
+                                                    <button name="save_setting" value="1" class="btn btn-sm btn-outline-success flex-fill">Update</button>
+                                                    <button name="delete_setting" value="<?= e($setting['key']) ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this setting?')">×</button>
+                                                </div>
+                                            </form>
+                                        </li>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectAll = document.getElementById('select-all-articles');
+        if (!selectAll) return;
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.article-check').forEach(function (cb) {
+                cb.checked = selectAll.checked;
+            });
+        });
+    });
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
