@@ -385,6 +385,11 @@ $baseQuery['per_page'] = $perPage;
     $stmt = $pdo->prepare("SELECT * FROM articles WHERE slug = ?");
     $stmt->execute([$slug]);
     $art = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($art) {
+        recordPageVisit('article:' . $art['slug'], 'Article: ' . $art['title']);
+    } else {
+        recordPageVisit('article:not-found', 'Article Not Found');
+    }
     ?>
 
     <?php if ($art): ?>
@@ -422,6 +427,7 @@ $baseQuery['per_page'] = $perPage;
     <?php endif; ?>
 
 <?php else: ?>
+    <?php recordPageVisit('home', 'Homepage'); ?>
     <div class="page-hero d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
         <div>
             <span class="badge text-bg-primary mb-2">Automotive Insights</span>

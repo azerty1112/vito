@@ -16,6 +16,59 @@ function e($text) {
     return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
 }
 
+function getVisitorFingerprint() {
+    $ip = trim((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown-ip'));
+    $agent = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'unknown-agent'));
+    return hash('sha256', $ip . '|' . $agent);
+}
+
+function recordPageVisit($pageKey, $pageLabel) {
+    $pageKey = trim((string)$pageKey);
+    $pageLabel = trim((string)$pageLabel);
+    if ($pageKey === '' || $pageLabel === '') {
+        return;
+    }
+
+    $pdo = db_connect();
+    $visitorHash = getVisitorFingerprint();
+    $now = time();
+
+    $stmt = $pdo->prepare("INSERT INTO page_visits (page_key, page_label, visitor_hash, views, created_at, updated_at)
+        VALUES (:page_key, :page_label, :visitor_hash, 1, :created_at, :updated_at)
+        ON CONFLICT(page_key, visitor_hash) DO UPDATE SET
+            views = views + 1,
+            page_label = excluded.page_label,
+            updated_at = excluded.updated_at");
+
+    $stmt->execute([
+        'page_key' => $pageKey,
+        'page_label' => $pageLabel,
+        'visitor_hash' => $visitorHash,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+}
+
+function getPageVisitStats($limit = 8) {
+    $limit = max(1, min(30, (int)$limit));
+    $pdo = db_connect();
+    $stmt = $pdo->prepare("SELECT
+            page_key,
+            MIN(page_label) AS page_label,
+            SUM(views) AS total_views,
+            COUNT(*) AS unique_visitors,
+            SUM(CASE WHEN updated_at >= :last_24h THEN 1 ELSE 0 END) AS visitors_24h,
+            MAX(updated_at) AS last_visit_at
+        FROM page_visits
+        GROUP BY page_key
+        ORDER BY total_views DESC
+        LIMIT :limit");
+    $stmt->bindValue(':last_24h', time() - 86400, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function fetchUrlBody($url, $timeoutSeconds = null) {
     $url = trim((string)$url);
     if ($url === '') {

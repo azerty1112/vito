@@ -420,6 +420,13 @@ $totalArticles = (int)$pdo->query("SELECT COUNT(*) FROM articles")->fetchColumn(
 $totalSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
 $totalWebSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
 $latestDate = $pdo->query("SELECT MAX(published_at) FROM articles")->fetchColumn();
+$pageVisitStats = getPageVisitStats(7);
+$totalTrackedViews = 0;
+$totalTrackedVisitors = 0;
+foreach ($pageVisitStats as $visitRow) {
+    $totalTrackedViews += (int)($visitRow['total_views'] ?? 0);
+    $totalTrackedVisitors += (int)($visitRow['unique_visitors'] ?? 0);
+}
 $dailyLimit = (int)getSetting('daily_limit', 5);
 $fetchTimeoutSeconds = getSettingInt('fetch_timeout_seconds', 12, 3, 45);
 $fetchRetryAttempts = getSettingInt('fetch_retry_attempts', 3, 1, 5);
@@ -518,6 +525,19 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
             letter-spacing: 0.2px;
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
+        .mini-analytics {
+            border: 1px solid rgba(59, 130, 246, 0.28);
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(37, 99, 235, 0.2));
+        }
+        .mini-analytics .table {
+            --bs-table-bg: transparent;
+            --bs-table-border-color: rgba(255, 255, 255, 0.08);
+            margin-bottom: 0;
+        }
+        .mini-analytics .progress {
+            height: 6px;
+            background-color: rgba(255, 255, 255, 0.12);
+        }
     </style>
 </head>
 <body class="text-light">
@@ -586,8 +606,56 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="card-body">
                     <small class="text-light-emphasis">Latest Publish</small>
                     <h6><?= e($latestDate ?: 'N/A') ?></h6>
+                    <small class="text-secondary d-block mt-2">Visitors: <?= (int)$totalTrackedVisitors ?> • Views: <?= (int)$totalTrackedViews ?></small>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="card section-card mini-analytics mb-4">
+        <div class="card-body py-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Visitor Analytics by Page</h6>
+                <small class="text-light-emphasis">Compact view · top <?= count($pageVisitStats) ?> pages</small>
+            </div>
+
+            <?php if (!$pageVisitStats): ?>
+                <small class="text-secondary">No visit data yet. Open the public pages and stats will appear automatically.</small>
+            <?php else: ?>
+                <?php $maxViews = max(1, (int)$pageVisitStats[0]['total_views']); ?>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle text-light">
+                        <thead>
+                        <tr>
+                            <th>Page</th>
+                            <th class="text-center">Unique</th>
+                            <th class="text-center">Views</th>
+                            <th class="text-center">Last 24h</th>
+                            <th style="width: 180px;">Trend</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($pageVisitStats as $visitRow): ?>
+                            <?php $ratio = min(100, (int)round(((int)$visitRow['total_views'] / $maxViews) * 100)); ?>
+                            <tr>
+                                <td>
+                                    <span class="fw-semibold"><?= e($visitRow['page_label']) ?></span>
+                                    <small class="text-secondary d-block"><?= e($visitRow['page_key']) ?></small>
+                                </td>
+                                <td class="text-center"><span class="badge text-bg-secondary"><?= (int)$visitRow['unique_visitors'] ?></span></td>
+                                <td class="text-center"><span class="badge text-bg-primary"><?= (int)$visitRow['total_views'] ?></span></td>
+                                <td class="text-center"><span class="badge text-bg-dark"><?= (int)$visitRow['visitors_24h'] ?></span></td>
+                                <td>
+                                    <div class="progress" role="progressbar" aria-label="Page views trend" aria-valuenow="<?= $ratio ?>" aria-valuemin="0" aria-valuemax="100">
+                                        <div class="progress-bar bg-info" style="width: <?= $ratio ?>%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
