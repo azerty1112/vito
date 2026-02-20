@@ -62,6 +62,18 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS article_exports (
     UNIQUE(article_id),
     FOREIGN KEY(article_id) REFERENCES articles(id) ON DELETE CASCADE
 )");
+$pdo->exec("CREATE TABLE IF NOT EXISTS page_visits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_key TEXT NOT NULL,
+    page_label TEXT NOT NULL,
+    visitor_hash TEXT NOT NULL,
+    views INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(page_key, visitor_hash)
+)");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_page_visits_page_key ON page_visits(page_key)");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_page_visits_updated_at ON page_visits(updated_at)");
 $pdo->exec("DELETE FROM rss_sources WHERE id NOT IN (SELECT MIN(id) FROM rss_sources GROUP BY url)");
 $pdo->exec("DELETE FROM web_sources WHERE id NOT IN (SELECT MIN(id) FROM web_sources GROUP BY url)");
 $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rss_sources_url ON rss_sources(url)");
