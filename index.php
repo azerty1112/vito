@@ -1,12 +1,155 @@
-<?php require_once 'functions.php';
+<?php
+require_once 'functions.php';
 publishAutoArticleBySchedule();
+
+$pdo = db_connect();
+$slug = trim($_GET['slug'] ?? '');
+$baseUrl = getSiteBaseUrl();
+$pageTitle = SITE_TITLE . ' - Latest Car Articles';
+$pageDescription = 'Explore in-depth automotive reviews, buying guides, and practical car ownership tips with regularly updated content.';
+$canonicalUrl = $baseUrl . '/index.php';
+$openGraphType = 'website';
+$openGraphImage = null;
+$articleStructuredData = null;
+$breadcrumbStructuredData = null;
+$listingStructuredData = null;
+$robotsDirective = 'index,follow';
+
+$isFilteredListing = $slug === '' && (
+    trim((string)($_GET['q'] ?? '')) !== ''
+    || trim((string)($_GET['category'] ?? '')) !== ''
+    || trim((string)($_GET['published_from'] ?? '')) !== ''
+    || trim((string)($_GET['published_to'] ?? '')) !== ''
+    || (int)($_GET['page'] ?? 1) > 1
+);
+if ($isFilteredListing) {
+    $robotsDirective = 'noindex,follow';
+}
+
+if ($slug !== '') {
+    $seoStmt = $pdo->prepare("SELECT title, slug, excerpt, content, image, published_at FROM articles WHERE slug = ? LIMIT 1");
+    $seoStmt->execute([$slug]);
+    $seoArticle = $seoStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($seoArticle) {
+        $pageTitle = $seoArticle['title'] . ' | ' . SITE_TITLE;
+        $pageDescription = trim((string)($seoArticle['excerpt'] ?? ''));
+        if ($pageDescription === '') {
+            $pageDescription = mb_substr(trim(strip_tags((string)($seoArticle['content'] ?? ''))), 0, 160);
+        }
+        $pageDescription = mb_substr($pageDescription, 0, 160);
+        $canonicalUrl = $baseUrl . '/index.php?slug=' . rawurlencode((string)$seoArticle['slug']);
+        $openGraphType = 'article';
+        $openGraphImage = trim((string)($seoArticle['image'] ?? '')) ?: null;
+
+        $articleStructuredData = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Article',
+            'headline' => $seoArticle['title'],
+            'description' => $pageDescription,
+            'author' => [
+                '@type' => 'Organization',
+                'name' => SITE_TITLE,
+            ],
+            'publisher' => [
+                '@type' => 'Organization',
+                'name' => SITE_TITLE,
+            ],
+            'datePublished' => date('c', strtotime((string)$seoArticle['published_at'])),
+            'dateModified' => date('c', strtotime((string)$seoArticle['published_at'])),
+            'mainEntityOfPage' => $canonicalUrl,
+            'url' => $canonicalUrl,
+        ];
+
+        if ($openGraphImage) {
+            $articleStructuredData['image'] = [$openGraphImage];
+        }
+
+        $breadcrumbStructuredData = [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                [
+                    '@type' => 'ListItem',
+                    'position' => 1,
+                    'name' => 'Home',
+                    'item' => $baseUrl . '/index.php',
+                ],
+                [
+                    '@type' => 'ListItem',
+                    'position' => 2,
+                    'name' => (string)$seoArticle['title'],
+                    'item' => $canonicalUrl,
+                ],
+            ],
+        ];
+    }
+}
+
+$websiteStructuredData = [
+    '@context' => 'https://schema.org',
+    '@type' => 'WebSite',
+    'name' => SITE_TITLE,
+    'url' => $baseUrl . '/index.php',
+    'potentialAction' => [
+        '@type' => 'SearchAction',
+        'target' => $baseUrl . '/index.php?q={search_term_string}',
+        'query-input' => 'required name=search_term_string',
+    ],
+];
+
+if ($slug === '') {
+    $latestForSchema = $pdo->query("SELECT title, slug FROM articles ORDER BY id DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+    if ($latestForSchema) {
+        $listingStructuredData = [
+            '@context' => 'https://schema.org',
+            '@type' => 'ItemList',
+            'name' => 'Latest Automotive Articles',
+            'itemListElement' => [],
+        ];
+        foreach ($latestForSchema as $position => $item) {
+            $listingStructuredData['itemListElement'][] = [
+                '@type' => 'ListItem',
+                'position' => $position + 1,
+                'url' => $baseUrl . '/index.php?slug=' . rawurlencode((string)$item['slug']),
+                'name' => (string)$item['title'],
+            ];
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= e(SITE_TITLE) ?> - Latest Car Articles</title>
+    <title><?= e($pageTitle) ?></title>
+    <meta name="description" content="<?= e($pageDescription) ?>">
+    <meta name="robots" content="<?= e($robotsDirective) ?>">
+    <link rel="canonical" href="<?= e($canonicalUrl) ?>">
+    <meta property="og:title" content="<?= e($pageTitle) ?>">
+    <meta property="og:description" content="<?= e($pageDescription) ?>">
+    <meta property="og:type" content="<?= e($openGraphType) ?>">
+    <meta property="og:url" content="<?= e($canonicalUrl) ?>">
+    <?php if ($openGraphImage): ?>
+        <meta property="og:image" content="<?= e($openGraphImage) ?>">
+    <?php endif; ?>
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="<?= e($pageTitle) ?>">
+    <meta name="twitter:description" content="<?= e($pageDescription) ?>">
+    <?php if ($openGraphImage): ?>
+        <meta name="twitter:image" content="<?= e($openGraphImage) ?>">
+    <?php endif; ?>
+    <script type="application/ld+json"><?= json_encode($websiteStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+    <?php if ($articleStructuredData): ?>
+        <script type="application/ld+json"><?= json_encode($articleStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+    <?php endif; ?>
+    <?php if ($breadcrumbStructuredData): ?>
+        <script type="application/ld+json"><?= json_encode($breadcrumbStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+    <?php endif; ?>
+    <?php if ($listingStructuredData): ?>
+        <script type="application/ld+json"><?= json_encode($listingStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+    <?php endif; ?>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
@@ -332,9 +475,7 @@ publishAutoArticleBySchedule();
 </section>
 
 <?php
-$pdo = db_connect();
 $search = trim($_GET['q'] ?? '');
-$slug = trim($_GET['slug'] ?? '');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $sort = $_GET['sort'] ?? 'newest';
 $category = trim($_GET['category'] ?? '');

@@ -1096,6 +1096,103 @@ function buildSectionContent($title, $sectionTitle, array $focusPoints, $isEV) {
     return $paragraphs;
 }
 
+function buildComparisonTable($title, $bodyType, $isEV) {
+    $rivalMap = [
+        'SUV' => ['Toyota RAV4 Hybrid', 'Honda CR-V Hybrid'],
+        'Sedan' => ['Toyota Camry', 'Honda Accord'],
+        'Truck' => ['Ford Ranger', 'Toyota Hilux'],
+        'Coupe' => ['BMW 4 Series', 'Audi A5'],
+        'Hatchback' => ['Volkswagen Golf', 'Mazda 3'],
+    ];
+
+    $rivals = $rivalMap[$bodyType] ?? ['Segment Benchmark Model', 'Value-Focused Alternative'];
+    $efficiencyMetric = $isEV ? 'Range (km est.)' : 'Fuel Economy (L/100km)';
+    $efficiencyValue = $isEV ? (string)rand(460, 690) : (string)rand(6, 10);
+
+    return "<h2>Competitor Comparison at a Glance</h2>
+"
+        . "<p>Buyers searching for {$title} alternatives usually compare real ownership outcomes, not only launch marketing numbers. This table highlights how {$title} stacks up against common choices in the same {$bodyType} category.</p>
+"
+        . "<div class='table-responsive'><table class='table table-striped table-bordered'><thead><tr><th>Model</th><th>Positioning</th><th>{$efficiencyMetric}</th><th>Best For</th></tr></thead><tbody>"
+        . "<tr><td><strong>{$title}</strong></td><td>Balanced performance + daily practicality</td><td>{$efficiencyValue}</td><td>Buyers wanting long-term ownership confidence</td></tr>"
+        . "<tr><td>{$rivals[0]}</td><td>Mainstream benchmark setup</td><td>Competitive</td><td>Drivers prioritizing proven familiarity</td></tr>"
+        . "<tr><td>{$rivals[1]}</td><td>Value-first package</td><td>Strong on paper</td><td>Cost-sensitive buyers with simpler needs</td></tr>"
+        . "</tbody></table></div>
+";
+}
+
+function buildBuyingChecklistSection($title, $isEV) {
+    $specificPoint = $isEV
+        ? 'Verify home charging readiness, local fast-charging coverage, and expected charging curve behavior in your climate.'
+        : 'Check expected fuel economy in your driving pattern and compare maintenance package coverage by dealership.';
+
+    return "<h2>Pre-Purchase Checklist</h2>
+"
+        . "<p>Before finalizing {$title}, use this shortlist to reduce buyer regret and improve long-term value:</p>
+"
+        . "<ol>"
+        . "<li>Compare trims by safety and comfort features, not badge labels alone.</li>"
+        . "<li>{$specificPoint}</li>"
+        . "<li>Request a real-world test route that includes city traffic, rough roads, and highway speeds.</li>"
+        . "<li>Confirm warranty details, service intervals, and total ownership cost projections for 3–5 years.</li>"
+        . "</ol>
+";
+}
+
+function buildPeopleAlsoAskSection($title, $isEV) {
+    $chargingQuestion = $isEV
+        ? "<li><strong>How fast can {$title} charge in daily use?</strong> Charging speed depends on charger type and battery state, but owners should prioritize charging curve stability and local infrastructure quality over peak brochure numbers.</li>"
+        : "<li><strong>Is {$title} fuel-efficient enough for daily commuting?</strong> Real-world efficiency is strongest when traffic, maintenance, and driving style are considered together instead of relying on ideal test cycles.</li>";
+
+    return "<h2>People Also Ask</h2>
+"
+        . "<p>These are common search questions potential buyers ask before deciding:</p>
+"
+        . "<ul>"
+        . "<li><strong>Is {$title} worth buying this year?</strong> It is a strong candidate for buyers who want a complete package with fewer compromises across comfort, tech, and ownership predictability.</li>"
+        . "<li><strong>How does {$title} compare with main competitors?</strong> The model typically wins by offering more balanced day-to-day behavior, even if some rivals lead in one isolated metric.</li>"
+        . $chargingQuestion
+        . "<li><strong>What should I check before signing the purchase?</strong> Compare trim value, warranty clarity, service network quality, and total cost of ownership rather than focusing only on sticker price.</li>"
+        . "</ul>
+";
+}
+
+function buildFaqSchemaScript($title, $isEV) {
+    $faqItems = [
+        [
+            'question' => "Is {$title} a good daily driver?",
+            'answer' => "Yes. {$title} is tuned to balance comfort, performance, and practical ownership, making it a solid daily-use option for most buyers.",
+        ],
+        [
+            'question' => "How does {$title} compare with competitors?",
+            'answer' => "It usually stands out through better overall balance and ownership confidence rather than relying on a single headline metric.",
+        ],
+        [
+            'question' => $isEV ? "Is {$title} practical for charging routines?" : "Is {$title} economical to run over time?",
+            'answer' => $isEV
+                ? "With suitable home or public charging access, it can be practical for daily routines while also reducing long-term running costs."
+                : "When maintained well and matched with the right trim, it can deliver predictable ownership costs over the long term.",
+        ],
+    ];
+
+    $schema = [
+        '@context' => 'https://schema.org',
+        '@type' => 'FAQPage',
+        'mainEntity' => array_map(function ($item) {
+            return [
+                '@type' => 'Question',
+                'name' => $item['question'],
+                'acceptedAnswer' => [
+                    '@type' => 'Answer',
+                    'text' => $item['answer'],
+                ],
+            ];
+        }, $faqItems),
+    ];
+
+    return "<script type='application/ld+json'>" . json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "</script>";
+}
+
 function ensureMinimumWordCount($html, $title, $minimumWords = 2100) {
     $expansionLibrary = [
         "<p>Beyond specifications, the {$title} should be evaluated through lifecycle quality: software stability over updates, ease of service access, parts availability, and dealership competence. These factors rarely appear in launch headlines, but they shape ownership satisfaction in a decisive way. Buyers who prioritize this complete picture are usually the ones who feel most confident in their purchase years after delivery.</p>",
@@ -1120,6 +1217,9 @@ function buildSeoBlock($title, $excerpt) {
         $title . ' review',
         $title . ' specs',
         $title . ' price',
+        $title . ' reliability',
+        $title . ' pros and cons',
+        $title . ' vs competitors',
         'best car buying guide'
     ];
 
@@ -1168,6 +1268,8 @@ function generateArticle($title) {
     $content .= "<img src='" . htmlspecialchars($coverImage, ENT_QUOTES, 'UTF-8') . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
     $content .= "<p>" . getRandomIntro($title) . " This review follows an editorial structure designed to deliver deep analysis, clear comparisons, and practical buying guidance.</p>\n";
     $content .= "<p><strong>Quick Take:</strong> The {$title} is a {$bodyType}-class product focused on balanced performance, everyday usability, and ownership predictability rather than one-dimensional headline metrics.</p>\n";
+    $content .= "<h2>What You Will Learn in This Guide</h2>\n";
+    $content .= "<ul><li>How {$title} performs in real ownership conditions, not only in launch marketing.</li><li>Which trim strategy makes the most financial sense for different buyer types.</li><li>Where {$title} stands versus competitors in comfort, tech, efficiency, and long-term value.</li></ul>\n";
 
     $sections = [
         'Executive Summary and Market Position' => [
@@ -1229,12 +1331,15 @@ function generateArticle($title) {
     $content .= "<h2>Technical Snapshot</h2>\n";
     $content .= "<table class='table table-bordered'><tr><th>Powertrain</th><td>{$drivetrain}</td></tr><tr><th>Output</th><td>{$horsepower} hp</td></tr><tr><th>0-60 mph</th><td>{$zeroToSixty} seconds</td></tr><tr><th>Efficiency</th><td>{$efficiencyLine}</td></tr><tr><th>Editorial Category</th><td>Auto</td></tr></table>\n";
 
+    $content .= buildComparisonTable($title, $bodyType, $isEV);
     $content .= buildBuyerPersonaSection($title, $isEV, $bodyType);
 
     $content .= "<h2>Strengths and Trade-Offs</h2>\n";
     $content .= "<ul><li><strong>Strengths:</strong> Cohesive engineering balance, strong day-to-day usability, mature technology integration, and a clear long-term value narrative.</li><li><strong>Trade-Offs:</strong> Higher entry price in premium trims, optional packages that may overlap in features, and availability pressure in high-demand regions.</li></ul>\n";
 
     $content .= buildFaqSection($title, $isEV);
+    $content .= buildPeopleAlsoAskSection($title, $isEV);
+    $content .= buildBuyingChecklistSection($title, $isEV);
 
     $content .= "<h2>Final Editorial Verdict</h2>\n";
     $content .= "<p class='mt-3'>The {$title} succeeds because it behaves like a complete product, not a collection of isolated features. It combines emotional appeal with practical intelligence, and that combination is exactly what modern buyers need in an uncertain, fast-evolving market. If your priority is a vehicle that remains convincing beyond launch-week excitement, this model is a serious and well-justified candidate.</p>";
@@ -1250,6 +1355,7 @@ function generateArticle($title) {
 
     $seo = buildSeoBlock($title, $excerpt);
     $content .= "\n" . $seo['html_block'];
+    $content .= "\n" . buildFaqSchemaScript($title, $isEV);
 
     return [
         'content' => $content,
