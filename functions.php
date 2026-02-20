@@ -799,7 +799,7 @@ function getSetting($key, $default = null) {
 function setSetting($key, $value) {
     $pdo = db_connect();
     $stmt = $pdo->prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
-    $stmt->execute([$key, (string)$value]);
+    executeStatementWithRetry($stmt, [$key, (string)$value]);
 }
 
 function articleExists($title) {
@@ -1208,6 +1208,31 @@ function generateArticle($title) {
     ];
 }
 
+function isSqliteLockedException(PDOException $exception) {
+    $message = mb_strtolower($exception->getMessage(), 'UTF-8');
+    return strpos($message, 'database is locked') !== false || strpos($message, 'database table is locked') !== false;
+}
+
+function executeStatementWithRetry(PDOStatement $statement, array $params, $maxAttempts = 5, $initialDelayMs = 100) {
+    $attempt = 0;
+    $delayMs = max(1, (int)$initialDelayMs);
+    $limit = max(1, (int)$maxAttempts);
+
+    while (true) {
+        try {
+            $statement->execute($params);
+            return;
+        } catch (PDOException $exception) {
+            $attempt++;
+            if ($attempt >= $limit || !isSqliteLockedException($exception)) {
+                throw $exception;
+            }
+            usleep($delayMs * 1000);
+            $delayMs *= 2;
+        }
+    }
+}
+
 function saveArticle($title, $data) {
     if (isDuplicateArticlePayload($title, $data['content'] ?? '')) {
         return false;
@@ -1216,7 +1241,7 @@ function saveArticle($title, $data) {
     $pdo = db_connect();
     $slug = generateUniqueSlug($title);
     $stmt = $pdo->prepare("INSERT INTO articles (title, slug, content, image, excerpt, published_at, category) VALUES (?,?,?,?,?,?,?)");
-    $stmt->execute([$title, $slug, $data['content'], $data['image'], $data['excerpt'], date('Y-m-d H:i:s'), 'Auto']);
+    executeStatementWithRetry($stmt, [$title, $slug, $data['content'], $data['image'], $data['excerpt'], date('Y-m-d H:i:s'), 'Auto']);
     $articleId = (int)$pdo->lastInsertId();
     writeArticleExportFiles($articleId, $slug, [
         'id' => $articleId,
