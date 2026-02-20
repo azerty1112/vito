@@ -390,6 +390,8 @@ $baseQuery['per_page'] = $perPage;
     <?php if ($art): ?>
         <a href="index.php<?= $baseQuery ? '?' . http_build_query($baseQuery) : '' ?>" class="btn btn-sm btn-outline-secondary mb-3">&larr; Back to articles</a>
         <article class="article-content bg-white p-4 rounded shadow-sm">
+            <?php $heroImage = trim((string)($art['image'] ?? '')) !== '' ? $art['image'] : buildFreeArticleImageUrl($art['title'] ?? $art['slug']); ?>
+            <img src="<?= e($heroImage) ?>" alt="<?= e($art['title']) ?>" class="img-fluid rounded mb-3">
             <?= $art['content'] ?>
             <hr>
             <div class="d-flex flex-wrap gap-2">
@@ -586,9 +588,10 @@ $baseQuery['per_page'] = $perPage;
         </div>
         <div class="row row-cols-1 row-cols-md-3 g-4">
             <?php foreach ($articles as $row): ?>
+                <?php $cardImage = trim((string)($row['image'] ?? '')) !== '' ? $row['image'] : buildFreeArticleImageUrl($row['title'] ?? $row['slug']); ?>
                 <div class="col">
                     <div class="card h-100 shadow-sm">
-                        <img src="<?= e($row['image']) ?>" class="card-img-top" style="height:200px;object-fit:cover" alt="<?= e($row['title']) ?>">
+                        <img src="<?= e($cardImage) ?>" class="card-img-top" style="height:200px;object-fit:cover" alt="<?= e($row['title']) ?>">
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title"><?= e($row['title']) ?></h5>
                             <p class="card-text text-muted"><?= e($row['excerpt']) ?></p>
