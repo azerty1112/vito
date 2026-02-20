@@ -8,6 +8,10 @@ function db_connect() {
     if (!file_exists(dirname(DB_FILE))) mkdir(dirname(DB_FILE), 0777, true);
     $pdo = new PDO('sqlite:' . DB_FILE);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->exec('PRAGMA busy_timeout = 5000');
+    $pdo->exec('PRAGMA journal_mode = WAL');
+    $pdo->exec('PRAGMA synchronous = NORMAL');
     return $pdo;
 }
 
