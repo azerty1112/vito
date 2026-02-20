@@ -608,7 +608,7 @@ function getContentWorkflowSummary() {
     $selected = getSelectedContentWorkflow();
     $rssSources = (int)$pdo->query("SELECT COUNT(*) FROM rss_sources")->fetchColumn();
     $webSources = (int)$pdo->query("SELECT COUNT(*) FROM web_sources")->fetchColumn();
-    $dailyLimit = getSettingInt('daily_limit', 5, 1, 50);
+    $dailyLimit = getSettingInt('daily_limit', 5, 1, 200);
 
     $selectedSources = $selected === 'web' ? $webSources : $rssSources;
     $scheduler = getAutoPublishSchedulerMeta();

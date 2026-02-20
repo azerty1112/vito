@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['update_daily_limit'])) {
         $newLimit = (int)($_POST['daily_limit'] ?? 5);
-        $newLimit = max(1, min(50, $newLimit));
+        $newLimit = max(1, min(200, $newLimit));
         setSetting('daily_limit', (string)$newLimit);
         $_SESSION['flash_message'] = 'Daily workflow generation limit updated.';
         $_SESSION['flash_type'] = 'success';
@@ -538,6 +538,19 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
             height: 6px;
             background-color: rgba(255, 255, 255, 0.12);
         }
+        .admin-tabs .nav-link {
+            color: #cbd5e1;
+            border-color: rgba(255, 255, 255, 0.12);
+            background: rgba(148, 163, 184, 0.08);
+        }
+        .admin-tabs .nav-link.active {
+            color: #fff;
+            background: rgba(59, 130, 246, 0.28);
+            border-color: rgba(96, 165, 250, 0.4);
+        }
+        .admin-tabs .nav-link:hover {
+            color: #fff;
+        }
     </style>
 </head>
 <body class="text-light">
@@ -668,7 +681,7 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-8">
                             <label class="form-label">Daily Workflow Limit</label>
-                            <input type="number" name="daily_limit" class="form-control" min="1" max="50" value="<?= $dailyLimit ?>">
+                            <input type="number" name="daily_limit" class="form-control" min="1" max="200" value="<?= $dailyLimit ?>">
                         </div>
                         <div class="col-4">
                             <button name="update_daily_limit" value="1" class="btn btn-outline-light w-100">Save</button>
@@ -810,109 +823,136 @@ $webRows = $webStmt->fetchAll(PDO::FETCH_ASSOC);
                 <a href="admin.php?export=articles_csv" class="btn btn-outline-light w-100"><i class="bi bi-filetype-csv"></i> Export CSV</a>
             </div>
 
-            <div class="card section-card mb-3">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">Recent Articles</h5>
-                        <form method="get" class="d-flex gap-2">
-                            <input type="text" name="qa" class="form-control form-control-sm" placeholder="Search title" value="<?= e($articleSearch) ?>">
-                            <select name="cat" class="form-select form-select-sm">
-                                <option value="">All categories</option>
-                                <?php foreach ($categoryOptions as $cat): ?>
-                                    <option value="<?= e($cat) ?>" <?= $articleCategory === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button class="btn btn-sm btn-outline-light">Filter</button>
-                        </form>
-                    </div>
+            <ul class="nav nav-pills admin-tabs gap-2 mb-3" id="adminDataTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="articles-tab" data-bs-toggle="pill" data-bs-target="#articles-pane" type="button" role="tab" aria-controls="articles-pane" aria-selected="true">
+                        <i class="bi bi-newspaper me-1"></i> Articles
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="rss-tab" data-bs-toggle="pill" data-bs-target="#rss-pane" type="button" role="tab" aria-controls="rss-pane" aria-selected="false">
+                        <i class="bi bi-rss me-1"></i> RSS Sources
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="web-tab" data-bs-toggle="pill" data-bs-target="#web-pane" type="button" role="tab" aria-controls="web-pane" aria-selected="false">
+                        <i class="bi bi-globe2 me-1"></i> Web Sources
+                    </button>
+                </li>
+            </ul>
 
-                    <div class="table-responsive rounded shadow-sm">
-                        <table class="table table-dark table-striped align-middle mb-0">
-                            <thead>
-                            <tr><th>Title</th><th>Category</th><th>Date</th><th>Action</th></tr>
-                            </thead>
-                            <tbody>
-                            <?php if (!$articles): ?>
-                                <tr><td colspan="4" class="text-center text-secondary">No articles found.</td></tr>
-                            <?php else: ?>
-                                <?php foreach ($articles as $row): ?>
-                                    <tr>
-                                        <td><?= e($row['title']) ?></td>
-                                        <td><span class="badge text-bg-secondary"><?= e($row['category'] ?: 'General') ?></span></td>
-                                        <td><?= e($row['published_at']) ?></td>
-                                        <td class="d-flex gap-2">
-                                            <a href="index.php?slug=<?= e($row['slug']) ?>" target="_blank" class="btn btn-sm btn-info">View</a>
-                                            <form method="post" onsubmit="return confirm('Delete this article?')">
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="articles-pane" role="tabpanel" aria-labelledby="articles-tab" tabindex="0">
+                    <div class="card section-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">Recent Articles</h5>
+                                <form method="get" class="d-flex gap-2">
+                                    <input type="text" name="qa" class="form-control form-control-sm" placeholder="Search title" value="<?= e($articleSearch) ?>">
+                                    <select name="cat" class="form-select form-select-sm">
+                                        <option value="">All categories</option>
+                                        <?php foreach ($categoryOptions as $cat): ?>
+                                            <option value="<?= e($cat) ?>" <?= $articleCategory === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-light">Filter</button>
+                                </form>
+                            </div>
+
+                            <div class="table-responsive rounded shadow-sm">
+                                <table class="table table-dark table-striped align-middle mb-0">
+                                    <thead>
+                                    <tr><th>Title</th><th>Category</th><th>Date</th><th>Action</th></tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php if (!$articles): ?>
+                                        <tr><td colspan="4" class="text-center text-secondary">No articles found.</td></tr>
+                                    <?php else: ?>
+                                        <?php foreach ($articles as $row): ?>
+                                            <tr>
+                                                <td><?= e($row['title']) ?></td>
+                                                <td><span class="badge text-bg-secondary"><?= e($row['category'] ?: 'General') ?></span></td>
+                                                <td><?= e($row['published_at']) ?></td>
+                                                <td class="d-flex gap-2">
+                                                    <a href="index.php?slug=<?= e($row['slug']) ?>" target="_blank" class="btn btn-sm btn-info">View</a>
+                                                    <form method="post" onsubmit="return confirm('Delete this article?')">
+                                                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                                        <button name="delete_article" value="<?= (int)$row['id'] ?>" class="btn btn-sm btn-outline-danger">Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="rss-pane" role="tabpanel" aria-labelledby="rss-tab" tabindex="0">
+                    <div class="card section-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">RSS Sources</h5>
+                                <form method="get" class="d-flex gap-2">
+                                    <input type="text" name="qr" class="form-control form-control-sm" placeholder="Search URL" value="<?= e($rssSearch) ?>">
+                                    <button class="btn btn-sm btn-outline-light">Search</button>
+                                </form>
+                            </div>
+
+                            <ul class="list-group shadow-sm">
+                                <?php if (!$rssRows): ?>
+                                    <li class="list-group-item text-center text-secondary">No RSS sources found.</li>
+                                <?php else: ?>
+                                    <?php foreach ($rssRows as $rss): ?>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span class="text-break pe-2"><?= e($rss['url']) ?></span>
+                                            <form method="post" onsubmit="return confirm('Remove this source?')">
                                                 <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                                                <button name="delete_article" value="<?= (int)$row['id'] ?>" class="btn btn-sm btn-outline-danger">Delete</button>
+                                                <button name="delete_rss" value="<?= (int)$rss['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                            </tbody>
-                        </table>
+                                        </li>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="card section-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">RSS Sources</h5>
-                        <form method="get" class="d-flex gap-2">
-                            <input type="text" name="qr" class="form-control form-control-sm" placeholder="Search URL" value="<?= e($rssSearch) ?>">
-                            <button class="btn btn-sm btn-outline-light">Search</button>
-                        </form>
+                <div class="tab-pane fade" id="web-pane" role="tabpanel" aria-labelledby="web-tab" tabindex="0">
+                    <div class="card section-card mt-0">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">Normal Website Sources</h5>
+                                <form method="get" class="d-flex gap-2">
+                                    <input type="text" name="qw" class="form-control form-control-sm" placeholder="Search URL" value="<?= e($webSearch) ?>">
+                                    <button class="btn btn-sm btn-outline-light">Search</button>
+                                </form>
+                            </div>
+
+                            <ul class="list-group shadow-sm">
+                                <?php if (!$webRows): ?>
+                                    <li class="list-group-item text-center text-secondary">No normal website sources found.</li>
+                                <?php else: ?>
+                                    <?php foreach ($webRows as $web): ?>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span class="text-break pe-2"><?= e($web['url']) ?></span>
+                                            <form method="post" onsubmit="return confirm('Remove this source?')">
+                                                <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                                                <button name="delete_web" value="<?= (int)$web['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
+                                            </form>
+                                        </li>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
                     </div>
-
-                    <ul class="list-group shadow-sm">
-                        <?php if (!$rssRows): ?>
-                            <li class="list-group-item text-center text-secondary">No RSS sources found.</li>
-                        <?php else: ?>
-                            <?php foreach ($rssRows as $rss): ?>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span class="text-break pe-2"><?= e($rss['url']) ?></span>
-                                    <form method="post" onsubmit="return confirm('Remove this source?')">
-                                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                                        <button name="delete_rss" value="<?= (int)$rss['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
-                                    </form>
-                                </li>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </ul>
-                </div>
-            </div>
-
-            <div class="card section-card mt-3">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">Normal Website Sources</h5>
-                        <form method="get" class="d-flex gap-2">
-                            <input type="text" name="qw" class="form-control form-control-sm" placeholder="Search URL" value="<?= e($webSearch) ?>">
-                            <button class="btn btn-sm btn-outline-light">Search</button>
-                        </form>
-                    </div>
-
-                    <ul class="list-group shadow-sm">
-                        <?php if (!$webRows): ?>
-                            <li class="list-group-item text-center text-secondary">No normal website sources found.</li>
-                        <?php else: ?>
-                            <?php foreach ($webRows as $web): ?>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span class="text-break pe-2"><?= e($web['url']) ?></span>
-                                    <form method="post" onsubmit="return confirm('Remove this source?')">
-                                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                                        <button name="delete_web" value="<?= (int)$web['id'] ?>" class="btn btn-sm btn-outline-danger">Remove</button>
-                                    </form>
-                                </li>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
