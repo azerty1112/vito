@@ -815,6 +815,37 @@ function normalizeTextForComparison($text) {
     return trim((string)$text);
 }
 
+function normalizeTitleFingerprint($title) {
+    $title = cleanAndNormalizeTitle($title);
+    if ($title === '') {
+        return '';
+    }
+
+    $title = mb_strtolower($title, 'UTF-8');
+    $title = preg_replace('/\b(19|20)\d{2}\b/u', ' ', (string)$title);
+    $title = preg_replace('/[^\p{L}\p{N}]+/u', ' ', (string)$title);
+
+    $tokens = preg_split('/\s+/u', trim((string)$title));
+    if (!is_array($tokens)) {
+        return '';
+    }
+
+    $stopWords = [
+        'the', 'a', 'an', 'and', 'or', 'for', 'with', 'from', 'to', 'of',
+        'review', 'guide', 'buying', 'best', 'top', 'new', 'vs'
+    ];
+
+    $filtered = [];
+    foreach ($tokens as $token) {
+        if ($token === '' || in_array($token, $stopWords, true)) {
+            continue;
+        }
+        $filtered[] = $token;
+    }
+
+    return implode(' ', $filtered);
+}
+
 function articleTitleVariantExists($title) {
     $pdo = db_connect();
     $baseSlug = slugify($title);
@@ -825,6 +856,24 @@ function articleTitleVariantExists($title) {
     $stmt = $pdo->prepare("SELECT 1 FROM articles WHERE slug = ? OR slug LIKE ? LIMIT 1");
     $stmt->execute([$baseSlug, $baseSlug . '-%']);
     return $stmt->fetchColumn() !== false;
+}
+
+function articleTitleFingerprintExists($title) {
+    $fingerprint = normalizeTitleFingerprint($title);
+    if ($fingerprint === '') {
+        return false;
+    }
+
+    $pdo = db_connect();
+    $rows = $pdo->query("SELECT title FROM articles ORDER BY id DESC LIMIT 500")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($rows as $storedTitle) {
+        $storedFingerprint = normalizeTitleFingerprint((string)$storedTitle);
+        if ($storedFingerprint !== '' && hash_equals($storedFingerprint, $fingerprint)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function articleContentExists($content) {
@@ -850,6 +899,7 @@ function articleContentExists($content) {
 function isDuplicateArticlePayload($title, $content) {
     return articleExists($title)
         || articleTitleVariantExists($title)
+        || articleTitleFingerprintExists($title)
         || articleContentExists($content);
 }
 
@@ -869,6 +919,38 @@ function generateUniqueSlug($title) {
         $slug = $base . '-' . $i;
         $i++;
     }
+}
+
+function buildFreeArticleImageUrl($seed) {
+    $seedText = trim((string)$seed);
+    if ($seedText === '') {
+        $seedText = 'car-article';
+    }
+
+    $slug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($seedText));
+    $slug = trim((string)$slug, '-');
+    if ($slug === '') {
+        $slug = 'car-article';
+    }
+
+    return "https://picsum.photos/seed/{$slug}/1200/675";
+}
+
+function buildUniqueArticleImageUrl($title, $model = '') {
+    $pdo = db_connect();
+    $baseSeed = trim($title . '-' . $model);
+
+    for ($attempt = 1; $attempt <= 20; $attempt++) {
+        $seed = $attempt === 1 ? $baseSeed : $baseSeed . '-' . $attempt;
+        $candidate = buildFreeArticleImageUrl($seed);
+        $stmt = $pdo->prepare("SELECT 1 FROM articles WHERE image = ? LIMIT 1");
+        $stmt->execute([$candidate]);
+        if ($stmt->fetchColumn() === false) {
+            return $candidate;
+        }
+    }
+
+    return buildFreeArticleImageUrl($baseSeed . '-' . uniqid('', true));
 }
 
 function verifyAdminPassword($password) {
@@ -1029,7 +1111,8 @@ function generateArticle($title) {
 
     $content = "<h1>" . htmlspecialchars($title) . "</h1>\n";
     $content .= "<p class='text-muted'>Published " . date('F j, Y') . " • AutoCar Niche</p>\n";
-    $content .= "<img src='https://loremflickr.com/800/450/car," . urlencode(strtolower($model)) . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
+    $coverImage = buildUniqueArticleImageUrl($title, $model);
+    $content .= "<img src='" . htmlspecialchars($coverImage, ENT_QUOTES, 'UTF-8') . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
     $content .= "<p>" . getRandomIntro($title) . " This review follows an editorial structure designed to deliver deep analysis, clear comparisons, and practical buying guidance.</p>\n";
     $content .= "<p><strong>Quick Take:</strong> The {$title} is a {$bodyType}-class product focused on balanced performance, everyday usability, and ownership predictability rather than one-dimensional headline metrics.</p>\n";
 
@@ -1118,7 +1201,7 @@ function generateArticle($title) {
     return [
         'content' => $content,
         'excerpt' => $excerpt,
-        'image' => "https://loremflickr.com/800/450/car," . urlencode(strtolower($model)),
+        'image' => $coverImage,
         'meta_title' => $seo['meta_title'],
         'meta_description' => $seo['meta_description'],
         'focus_keywords' => $seo['keywords'],

@@ -21,6 +21,8 @@ Simple PHP automotive blog generator with:
 - Queue-based scraping with source cooldown + stale-lock recovery to avoid source overload.
 - Content pipeline for cleaning/normalizing titles, merge+deduplicate, and SEO block generation.
 - Multi-format persistence for each article (DB + exported HTML + exported JSON in `data/exports/`).
+- Free automatic article cover images powered by seeded Picsum URLs (no API key required).
+- Anti-duplication guardrails for titles, content, and image URLs to reduce repeated posts.
 
 ## Production pipeline (10 steps)
 
