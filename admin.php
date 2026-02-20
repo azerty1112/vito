@@ -758,6 +758,23 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         .admin-tabs .nav-link:hover {
             color: #fff;
         }
+        .dashboard-sidebar {
+            position: sticky;
+            top: 1rem;
+        }
+        .dashboard-sidebar .nav-link {
+            color: #dbe7ff;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(148, 163, 184, 0.08);
+            margin-bottom: 0.5rem;
+            border-radius: 0.6rem;
+            transition: all 0.2s ease;
+        }
+        .dashboard-sidebar .nav-link:hover {
+            color: #fff;
+            background: rgba(59, 130, 246, 0.22);
+            border-color: rgba(96, 165, 250, 0.35);
+        }
     </style>
 </head>
 <body class="text-light">
@@ -796,7 +813,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         <span class="ms-1"><?= e($workflowAlertText) ?></span>
     </div>
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4" id="overview-stats">
         <div class="col-sm-6 col-lg-3">
             <div class="card section-card stat-card h-100">
                 <div class="card-body">
@@ -880,8 +897,26 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
     <div class="row g-4">
+        <aside class="col-lg-3">
+            <div class="card section-card dashboard-sidebar">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="bi bi-layout-sidebar"></i> Dashboard Sections</h5>
+                    <nav class="nav flex-column">
+                        <a class="nav-link" href="#overview-stats"><i class="bi bi-grid me-1"></i> Overview</a>
+                        <a class="nav-link" href="#publishing-settings"><i class="bi bi-sliders me-1"></i> Publishing Controls</a>
+                        <a class="nav-link" href="#sources-management"><i class="bi bi-collection me-1"></i> Sources & Queue</a>
+                        <a class="nav-link" href="#content-data"><i class="bi bi-table me-1"></i> Content Data</a>
+                    </nav>
+                    <hr class="border-secondary-subtle my-3">
+                    <small class="text-secondary d-block">Use this side bar to jump between dashboard sections quickly.</small>
+                </div>
+            </div>
+        </aside>
+
+        <div class="col-lg-9">
+            <div class="row g-4">
         <div class="col-xl-4">
-            <div class="card section-card mb-3">
+            <div class="card section-card mb-3" id="publishing-settings">
                 <div class="card-body">
                     <h5><i class="bi bi-sliders"></i> Publishing Settings</h5>
                     <form method="post" class="row g-2 align-items-end">
@@ -980,7 +1015,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
 
-            <div class="card section-card mb-3">
+            <div class="card section-card mb-3" id="sources-management">
                 <div class="card-body">
                     <h5><i class="bi bi-pencil-square"></i> Add Titles Manually</h5>
                     <form method="post">
@@ -1018,7 +1053,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
 
-        <div class="col-xl-8">
+        <div class="col-xl-8" id="content-data">
             <form method="post" class="mb-3">
                 <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                 <button name="run_content_workflow" value="1" class="btn btn-primary btn-lg w-100">
@@ -1303,6 +1338,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
 
                 </div>
+            </div>
+        </div>
             </div>
         </div>
     </div>
