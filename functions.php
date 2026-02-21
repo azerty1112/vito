@@ -30,19 +30,116 @@ function getSiteBaseUrl() {
 }
 
 function getVisitorFingerprint() {
-    $forwardedFor = trim((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
-    if ($forwardedFor !== '') {
-        $parts = array_map('trim', explode(',', $forwardedFor));
-        $ip = (string)($parts[0] ?? '');
-    } else {
-        $ip = trim((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown-ip'));
-    }
-
+    $ip = getVisitorIpAddress();
     if ($ip === '') {
         $ip = 'unknown-ip';
     }
 
     return hash('sha256', $ip);
+}
+
+function getVisitorIpAddress() {
+    $forwardedFor = trim((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+    if ($forwardedFor !== '') {
+        $parts = array_map('trim', explode(',', $forwardedFor));
+        foreach ($parts as $candidate) {
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
+        }
+    }
+
+    $remoteAddress = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    if ($remoteAddress !== '' && filter_var($remoteAddress, FILTER_VALIDATE_IP)) {
+        return $remoteAddress;
+    }
+
+    return $remoteAddress;
+}
+
+function ipMatchesRule($ipAddress, $rule) {
+    $ipAddress = trim((string)$ipAddress);
+    $rule = trim((string)$rule);
+    if ($ipAddress === '' || $rule === '') {
+        return false;
+    }
+
+    if (strpos($rule, '/') !== false) {
+        [$subnet, $maskBitsRaw] = array_pad(explode('/', $rule, 2), 2, '');
+        $subnet = trim($subnet);
+        $maskBits = (int)$maskBitsRaw;
+
+        if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($ipAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            if ($maskBits < 0 || $maskBits > 32) {
+                return false;
+            }
+            $subnetLong = ip2long($subnet);
+            $ipLong = ip2long($ipAddress);
+            if ($subnetLong === false || $ipLong === false) {
+                return false;
+            }
+            $mask = $maskBits === 0 ? 0 : (-1 << (32 - $maskBits));
+            return (($ipLong & $mask) === ($subnetLong & $mask));
+        }
+
+        return false;
+    }
+
+    return $ipAddress === $rule;
+}
+
+function normalizeExcludedIpRules($rawValue) {
+    $rawValue = trim((string)$rawValue);
+    if ($rawValue === '') {
+        return '';
+    }
+
+    $tokens = preg_split('/[\s,]+/', $rawValue, -1, PREG_SPLIT_NO_EMPTY);
+    $rules = [];
+    foreach ($tokens as $token) {
+        $rule = trim((string)$token);
+        if ($rule === '') {
+            continue;
+        }
+
+        if (strpos($rule, '/') !== false) {
+            [$subnet, $maskBitsRaw] = array_pad(explode('/', $rule, 2), 2, '');
+            $subnet = trim($subnet);
+            $maskBits = (int)$maskBitsRaw;
+            if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $maskBits >= 0 && $maskBits <= 32) {
+                $rules[] = $subnet . '/' . $maskBits;
+            }
+            continue;
+        }
+
+        if (filter_var($rule, FILTER_VALIDATE_IP)) {
+            $rules[] = $rule;
+        }
+    }
+
+    $rules = array_values(array_unique($rules));
+    return implode("\n", $rules);
+}
+
+function shouldIgnoreVisitForIp($ipAddress) {
+    $ipAddress = trim((string)$ipAddress);
+    if ($ipAddress === '') {
+        return false;
+    }
+
+    $excludedRaw = normalizeExcludedIpRules((string)getSetting('visit_excluded_ips', ''));
+    if ($excludedRaw === '') {
+        return false;
+    }
+
+    $rules = preg_split('/[\s,]+/', $excludedRaw, -1, PREG_SPLIT_NO_EMPTY);
+    foreach ($rules as $rule) {
+        if (ipMatchesRule($ipAddress, $rule)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function recordPageVisit($pageKey, $pageLabel) {
@@ -53,6 +150,11 @@ function recordPageVisit($pageKey, $pageLabel) {
     }
 
     $pdo = db_connect();
+    $ipAddress = getVisitorIpAddress();
+    if (shouldIgnoreVisitForIp($ipAddress)) {
+        return;
+    }
+
     $visitorHash = getVisitorFingerprint();
     $now = time();
 
