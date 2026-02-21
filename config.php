@@ -122,6 +122,8 @@ $defaults = [
     'ads_paragraph_interval' => '4',
     'ads_max_units_per_article' => '2',
     'ads_min_words_before_first_injection' => '180',
+    'ads_min_article_words' => '420',
+    'ads_blocked_title_keywords' => '',
     'ads_label_text' => 'Sponsored',
     'ads_html_code' => '<div class="ad-unit-inner">Place your ad code here</div>'
 ];

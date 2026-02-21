@@ -216,6 +216,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $adsMinWords = (int)($_POST['ads_min_words_before_first_injection'] ?? 180);
         $adsMinWords = max(80, min(600, $adsMinWords));
 
+        $adsMinArticleWords = (int)($_POST['ads_min_article_words'] ?? 420);
+        $adsMinArticleWords = max(120, min(3000, $adsMinArticleWords));
+
+        $adsBlockedTitleKeywords = trim((string)($_POST['ads_blocked_title_keywords'] ?? ''));
+        if (mb_strlen($adsBlockedTitleKeywords) > 300) {
+            $adsBlockedTitleKeywords = mb_substr($adsBlockedTitleKeywords, 0, 300);
+        }
+
         $adsLabel = trim((string)($_POST['ads_label_text'] ?? 'Sponsored'));
         if ($adsLabel === '') {
             $adsLabel = 'Sponsored';
@@ -237,6 +245,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('ads_paragraph_interval', (string)$adsInterval);
         setSetting('ads_max_units_per_article', (string)$adsMaxUnits);
         setSetting('ads_min_words_before_first_injection', (string)$adsMinWords);
+        setSetting('ads_min_article_words', (string)$adsMinArticleWords);
+        setSetting('ads_blocked_title_keywords', $adsBlockedTitleKeywords);
         setSetting('ads_label_text', $adsLabel);
         setSetting('ads_html_code', $adsHtmlCode);
 
@@ -900,6 +910,8 @@ if (!in_array($adsInjectionMode, ['smart', 'interval'], true)) {
 $adsParagraphInterval = getSettingInt('ads_paragraph_interval', 4, 2, 10);
 $adsMaxUnits = getSettingInt('ads_max_units_per_article', 2, 1, 6);
 $adsMinWordsBeforeFirstInjection = getSettingInt('ads_min_words_before_first_injection', 180, 80, 600);
+$adsMinArticleWords = getSettingInt('ads_min_article_words', 420, 120, 3000);
+$adsBlockedTitleKeywords = (string)getSetting('ads_blocked_title_keywords', '');
 $adsLabelText = (string)getSetting('ads_label_text', 'Sponsored');
 $adsHtmlCode = (string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>');
 $minWords = getSettingInt('min_words', 3000, 300, 12000);
@@ -1013,7 +1025,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
     <style>
         body {
             --bs-heading-color: #ff4d4f;
-            background: #10131a;
+            background: radial-gradient(circle at 15% 10%, #1f6f54 0%, #14532d 45%, #0b2e1f 100%);
+            background-attachment: fixed;
             color: #ff4d4f;
         }
         .text-secondary,
@@ -1023,7 +1036,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             color: #ff7b7d !important;
         }
         .section-card {
-            background: #232a34;
+            background: #4a273b;
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .stat-card h3,
@@ -1035,7 +1048,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             vertical-align: middle;
         }
         .list-group-item {
-            background: #232a34;
+            background: #4a273b;
             color: #f8f9fa;
             border-color: rgba(255, 255, 255, 0.08);
         }
@@ -1125,6 +1138,32 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         .progress-bar.bg-info {
             background-color: #ef4444 !important;
+        }
+        .ads-preview .inline-ad-unit {
+            margin: 0;
+            border: 1px solid rgba(251, 146, 60, 0.65);
+            background: rgba(255, 247, 237, 0.1);
+            border-radius: 0.75rem;
+            padding: 0.85rem;
+        }
+        .ads-preview .inline-ad-label {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #fdba74;
+            margin-bottom: 0.45rem;
+        }
+        .ads-preview .ad-unit-inner {
+            border: 1px dashed rgba(251, 146, 60, 0.8);
+            border-radius: 0.65rem;
+            padding: 0.75rem;
+            color: #fed7aa;
+            text-align: center;
+            min-height: 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         #pipeline-config-section h5,
         #pipeline-config-section h6,
@@ -1370,6 +1409,14 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <label class="form-label">Min Words before First Ad</label>
                             <input type="number" name="ads_min_words_before_first_injection" class="form-control" min="80" max="600" value="<?= (int)$adsMinWordsBeforeFirstInjection ?>">
                         </div>
+                        <div class="col-6">
+                            <label class="form-label">Min Article Words (Enable Ads)</label>
+                            <input type="number" name="ads_min_article_words" class="form-control" min="120" max="3000" value="<?= (int)$adsMinArticleWords ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Block Ads for Title Keywords (comma separated)</label>
+                            <input type="text" name="ads_blocked_title_keywords" class="form-control" maxlength="300" value="<?= e($adsBlockedTitleKeywords) ?>" placeholder="opinion, breaking, live blog">
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Ad Label</label>
                             <input type="text" name="ads_label_text" class="form-control" maxlength="40" value="<?= e($adsLabelText) ?>" placeholder="Sponsored">
@@ -1382,7 +1429,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <button name="update_ads_settings" value="1" class="btn btn-outline-light w-100">Save Ads Controls</button>
                         </div>
                     </form>
-                    <small class="text-secondary">Smart mode uses content-aware rules to place ads after substantial sections, reducing user annoyance.</small>
+                    <small class="text-secondary">Smart mode uses content-aware rules, minimum article length checks, and optional title keyword blocking for safer monetization.</small>
+                    <div class="mt-3 ads-preview">
+                        <div class="inline-ad-unit">
+                            <div class="inline-ad-label"><?= e($adsLabelText) ?> • Preview</div>
+                            <?= $adsHtmlCode !== '' ? $adsHtmlCode : '<div class="ad-unit-inner">Place your ad code here</div>' ?>
+                        </div>
+                    </div>
                 </div>
             </div>
 
