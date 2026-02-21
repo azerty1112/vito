@@ -805,9 +805,25 @@ function getAdSettings() {
         'paragraph_interval' => getSettingInt('ads_paragraph_interval', 4, 2, 10),
         'max_units' => getSettingInt('ads_max_units_per_article', 2, 1, 6),
         'min_words_before_first' => getSettingInt('ads_min_words_before_first_injection', 180, 80, 600),
+        'min_article_words' => getSettingInt('ads_min_article_words', 420, 120, 3000),
+        'blocked_title_keywords' => trim((string)getSetting('ads_blocked_title_keywords', '')),
         'label' => mb_substr($label, 0, 40),
         'html_code' => trim((string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>')),
     ];
+}
+
+function parseAdBlockedTitleKeywords($value) {
+    $raw = preg_split('/[,\n]+/u', (string)$value);
+    $keywords = [];
+    foreach ($raw as $item) {
+        $token = mb_strtolower(trim((string)$item));
+        if ($token === '' || mb_strlen($token) < 2) {
+            continue;
+        }
+        $keywords[$token] = true;
+    }
+
+    return array_keys($keywords);
 }
 
 function countVisibleWords($text) {
@@ -855,6 +871,22 @@ function injectAdsIntoArticleContent($html, $articleTitle = '') {
     $maxUnits = (int)$adSettings['max_units'];
     $interval = (int)$adSettings['paragraph_interval'];
     $minWords = (int)$adSettings['min_words_before_first'];
+    $minArticleWords = (int)$adSettings['min_article_words'];
+
+    $articleWordCount = countVisibleWords(strip_tags($content));
+    if ($articleWordCount < $minArticleWords) {
+        return $html;
+    }
+
+    $titleKeywords = parseAdBlockedTitleKeywords($adSettings['blocked_title_keywords'] ?? '');
+    if ($titleKeywords) {
+        $title = mb_strtolower(trim((string)$articleTitle));
+        foreach ($titleKeywords as $keyword) {
+            if ($title !== '' && mb_stripos($title, $keyword) !== false) {
+                return $html;
+            }
+        }
+    }
 
     $wrappedHtml = '<div id="article-content-root">' . $content . '</div>';
     $previousUseErrors = libxml_use_internal_errors(true);
