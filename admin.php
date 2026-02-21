@@ -12,7 +12,7 @@ $isLocked = $_SESSION['login_lock_until'] > $now;
 $remainingLockSeconds = max(0, $_SESSION['login_lock_until'] - $now);
 
 if (!isset($_SESSION['logged']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pass'])) {
-    $submittedPassword = trim((string)($_POST['pass'] ?? ''));
+    $submittedPassword = (string)($_POST['pass'] ?? '');
 
     if ($isLocked) {
         $_SESSION['login_error'] = 'Too many attempts. Try again in ' . $remainingLockSeconds . ' seconds.';
@@ -113,9 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['update_admin_password'])) {
-        $currentPassword = trim((string)($_POST['current_password'] ?? ''));
-        $newPassword = trim((string)($_POST['new_password'] ?? ''));
-        $confirmPassword = trim((string)($_POST['confirm_password'] ?? ''));
+        $currentPassword = (string)($_POST['current_password'] ?? '');
+        $newPassword = (string)($_POST['new_password'] ?? '');
+        $confirmPassword = (string)($_POST['confirm_password'] ?? '');
 
         if (!verifyAdminPassword($currentPassword)) {
             $_SESSION['flash_message'] = 'Current password is incorrect.';
@@ -971,6 +971,18 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             border-color: rgba(252, 165, 165, 0.6);
             background: rgba(220, 38, 38, 0.25);
         }
+        .panel-nav-btn:focus-visible {
+            outline: 2px solid rgba(252, 165, 165, 0.85);
+            outline-offset: 2px;
+        }
+        #control-panel-search {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(248, 113, 113, 0.3);
+            color: #fff;
+        }
+        #control-panel-search::placeholder {
+            color: #ffb4b5;
+        }
         #active-control-panel .section-card {
             margin-bottom: 1rem;
         }
@@ -1113,6 +1125,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <h5 class="mb-3"><i class="bi bi-layout-sidebar"></i> Dashboard Sections</h5>
                     <hr class="border-secondary-subtle my-3">
                     <h6 class="mb-2"><i class="bi bi-ui-checks-grid"></i> Control Buttons</h6>
+                    <input type="search" id="control-panel-search" class="form-control form-control-sm mb-2" placeholder="Search sections..." aria-label="Search dashboard sections">
+                    <small class="d-block text-secondary mb-2" id="active-section-label">Active: —</small>
                     <div class="d-grid gap-2" id="control-panel-nav"></div>
                 </div>
             </div>
@@ -1131,8 +1145,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <div class="col-12">
                             <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" minlength="8" autocomplete="new-password" required>
                         </div>
-                        <div class="col-12">
-                            <button name="update_admin_password" value="1" class="btn btn-outline-light w-100">Save New Password</button>
+                        <div class="col-12 d-flex justify-content-end">
+                            <button name="update_admin_password" value="1" class="btn btn-outline-light">Save New Password</button>
                         </div>
                     </form>
                 </div>
@@ -1698,17 +1712,27 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
     document.addEventListener('DOMContentLoaded', function () {
         const sourceCards = Array.from(document.querySelectorAll('#control-cards-source .section-card'));
         const panelNav = document.getElementById('control-panel-nav');
+        const panelSearch = document.getElementById('control-panel-search');
+        const activeSectionLabel = document.getElementById('active-section-label');
         const activePanel = document.getElementById('active-control-panel');
+        let currentIndex = 0;
 
         function renderPanel(index) {
             if (!activePanel || !sourceCards[index]) return;
+            currentIndex = index;
             activePanel.innerHTML = '';
             activePanel.appendChild(sourceCards[index]);
 
-            panelNav.querySelectorAll('button').forEach(function (btn, btnIndex) {
-                btn.classList.toggle('active', btnIndex === index);
+            panelNav.querySelectorAll('button').forEach(function (btn) {
+                const isActive = Number(btn.dataset.index) === index;
+                btn.classList.toggle('active', isActive);
             });
 
+            if (activeSectionLabel) {
+                const titleEl = sourceCards[index].querySelector('h5');
+                const label = titleEl ? titleEl.innerText.trim() : 'Section ' + (index + 1);
+                activeSectionLabel.textContent = 'Active: ' + label;
+            }
         }
 
         if (panelNav && activePanel && sourceCards.length) {
@@ -1719,11 +1743,35 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 btn.type = 'button';
                 btn.className = 'btn panel-nav-btn';
                 btn.textContent = label;
+                btn.dataset.index = String(index);
+                btn.dataset.label = label.toLowerCase();
                 btn.addEventListener('click', function () {
                     renderPanel(index);
                 });
                 panelNav.appendChild(btn);
             });
+
+            if (panelSearch) {
+                panelSearch.addEventListener('input', function () {
+                    const query = panelSearch.value.trim().toLowerCase();
+                    const buttons = Array.from(panelNav.querySelectorAll('button'));
+                    let firstVisibleIndex = null;
+
+                    buttons.forEach(function (btn) {
+                        const matches = query === '' || btn.dataset.label.includes(query);
+                        btn.classList.toggle('d-none', !matches);
+                        if (matches && firstVisibleIndex === null) {
+                            firstVisibleIndex = Number(btn.dataset.index);
+                        }
+                    });
+
+                    if (firstVisibleIndex !== null && buttons.every(function (btn) { return !btn.classList.contains('active') || btn.classList.contains('d-none'); })) {
+                        renderPanel(firstVisibleIndex);
+                    } else {
+                        renderPanel(currentIndex);
+                    }
+                });
+            }
 
             renderPanel(0);
         }
