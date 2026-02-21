@@ -1362,6 +1362,39 @@ function writeArticleExportFiles($articleId, $slug, array $payload) {
     $stmt->execute([(int)$articleId, $slug, 'data/exports/' . $slug . '.html', 'data/exports/' . $slug . '.json', date('Y-m-d H:i:s')]);
 }
 
+function buildHeadingAnchorId($text, $fallback = 'section') {
+    $base = strtolower(trim((string)$text));
+    $base = preg_replace('/[^a-z0-9\s-]/', '', $base);
+    $base = preg_replace('/\s+/', '-', (string)$base);
+    $base = trim((string)$base, '-');
+    if ($base === '') {
+        $base = trim((string)$fallback);
+    }
+    return $base;
+}
+
+function buildArticleTableOfContents(array $sections) {
+    if (!$sections) {
+        return '';
+    }
+
+    $items = [];
+    foreach ($sections as $section) {
+        $title = trim((string)($section['title'] ?? ''));
+        $id = trim((string)($section['id'] ?? ''));
+        if ($title === '' || $id === '') {
+            continue;
+        }
+        $items[] = "<li><a href='#" . e($id) . "'>" . e($title) . "</a></li>";
+    }
+
+    if (!$items) {
+        return '';
+    }
+
+    return "<section class='article-toc'><h2>Quick Navigation</h2><ol>" . implode('', $items) . "</ol></section>";
+}
+
 function generateArticle($title) {
     $model = trim(preg_replace('/\b(202[0-9]|20[0-9]{2})\b/', '', $title));
     $isEV = stripos($title, 'EV') !== false || stripos($title, 'electric') !== false;
@@ -1372,6 +1405,7 @@ function generateArticle($title) {
     $coverImage = buildUniqueArticleImageUrl($title, $model);
     $content .= "<img src='" . htmlspecialchars($coverImage, ENT_QUOTES, 'UTF-8') . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
     $content .= "<p>" . getRandomIntro($title) . " This review follows an editorial structure designed to deliver deep analysis, clear comparisons, and practical buying guidance.</p>\n";
+    $content .= "<p>This {$title} review is optimized to answer the top buyer questions around performance, reliability, pricing logic, and long-term ownership value.</p>\n";
     $content .= "<p><strong>Quick Take:</strong> The {$title} is a {$bodyType}-class product focused on balanced performance, everyday usability, and ownership predictability rather than one-dimensional headline metrics.</p>\n";
     $content .= "<h2>What You Will Learn in This Guide</h2>\n";
     $content .= "<ul><li>How {$title} performs in real ownership conditions, not only in launch marketing.</li><li>Which trim strategy makes the most financial sense for different buyer types.</li><li>Where {$title} stands versus competitors in comfort, tech, efficiency, and long-term value.</li></ul>\n";
@@ -1419,12 +1453,17 @@ function generateArticle($title) {
         ]
     ];
 
+    $tocSections = [];
     foreach ($sections as $sectionTitle => $focusPoints) {
-        $content .= "<h2>{$sectionTitle}</h2>\n";
+        $sectionId = buildHeadingAnchorId($sectionTitle, 'section-' . (count($tocSections) + 1));
+        $tocSections[] = ['title' => $sectionTitle, 'id' => $sectionId];
+        $content .= "<h2 id='" . e($sectionId) . "'>{$sectionTitle}</h2>\n";
         foreach (buildSectionContent($title, $sectionTitle, $focusPoints, $isEV) as $paragraph) {
             $content .= $paragraph . "\n";
         }
     }
+
+    $content = preg_replace('/(<h2>What You Will Learn in This Guide<\/h2>\n<ul>.*?<\/ul>\n)/s', "$1" . buildArticleTableOfContents($tocSections) . "\n", $content, 1);
 
     $horsepower = rand(260, 640);
     $zeroToSixty = number_format(rand(34, 67) / 10, 1);
