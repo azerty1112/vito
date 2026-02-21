@@ -916,8 +916,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         .mini-analytics {
-            border: 1px solid rgba(59, 130, 246, 0.28);
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(37, 99, 235, 0.2));
+            border: 1px solid rgba(249, 115, 22, 0.35);
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(249, 115, 22, 0.2));
         }
         .mini-analytics .table {
             --bs-table-bg: transparent;
@@ -1131,31 +1131,6 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
 
-            <div class="card section-card mt-3">
-                <div class="card-body">
-                    <button class="btn btn-outline-light w-100" type="button" data-bs-toggle="collapse" data-bs-target="#admin-password-collapse" aria-expanded="false" aria-controls="admin-password-collapse">
-                        <i class="bi bi-key"></i> Change Admin Password
-                    </button>
-                    <div class="collapse mt-3" id="admin-password-collapse">
-                        <form method="post" class="row g-2">
-                            <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-                            <div class="col-12">
-                                <input type="password" name="current_password" class="form-control" placeholder="Current password" autocomplete="current-password" required>
-                            </div>
-                            <div class="col-12">
-                                <input type="password" name="new_password" class="form-control" placeholder="New password (min 8 chars)" minlength="8" autocomplete="new-password" required>
-                            </div>
-                            <div class="col-12">
-                                <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" minlength="8" autocomplete="new-password" required>
-                            </div>
-                            <div class="col-12 d-flex justify-content-end">
-                                <button name="update_admin_password" value="1" class="btn btn-outline-light">Save New Password</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
         </aside>
 
         <div class="col-lg-9">
@@ -1338,7 +1313,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <textarea name="auto_title_fixed_titles" class="form-control" rows="4"><?= e($autoTitleFixedTitles) ?></textarea>
                         </div>
                         <div class="col-12">
-                            <button name="update_auto_title_settings" value="1" class="btn btn-outline-primary w-100">Save Title Generation Controls</button>
+                            <button name="update_auto_title_settings" value="1" class="btn btn-outline-warning w-100">Save Title Generation Controls</button>
                         </div>
                         <div class="col-6">
                             <button name="preview_auto_titles" value="1" class="btn btn-outline-info w-100">Preview 5 Generated Titles</button>
@@ -1367,6 +1342,27 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <button name="generate_demo_pack" value="1" class="btn btn-outline-info w-100">
                             <i class="bi bi-stars"></i> Generate Demo Content Pack
                         </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card section-card mb-3" id="admin-password-settings">
+                <div class="card-body">
+                    <h5><i class="bi bi-key"></i> Change Admin Password</h5>
+                    <form method="post" class="row g-2">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <input type="password" name="current_password" class="form-control" placeholder="Current password" autocomplete="current-password" required>
+                        </div>
+                        <div class="col-12">
+                            <input type="password" name="new_password" class="form-control" placeholder="New password (min 8 chars)" minlength="8" autocomplete="new-password" required>
+                        </div>
+                        <div class="col-12">
+                            <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" minlength="8" autocomplete="new-password" required>
+                        </div>
+                        <div class="col-12 d-flex justify-content-end">
+                            <button name="update_admin_password" value="1" class="btn btn-outline-light">Save New Password</button>
+                        </div>
                     </form>
                 </div>
             </div>
