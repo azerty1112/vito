@@ -884,6 +884,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         body {
+            --bs-heading-color: #ff4d4f;
             background: #10131a;
             color: #ff4d4f;
         }
