@@ -5,15 +5,44 @@ publishAutoArticleBySchedule();
 $pdo = db_connect();
 $slug = trim($_GET['slug'] ?? '');
 $baseUrl = getSiteBaseUrl();
-$pageTitle = SITE_TITLE;
-$pageDescription = 'Automotive reviews, guides, and practical car ownership tips.';
+$pageTitle = (string)getSetting('seo_home_title', SITE_TITLE);
+$pageDescription = (string)getSetting('seo_home_description', 'Automotive reviews, guides, and practical car ownership tips.');
 $canonicalUrl = $baseUrl . '/index.php';
 $openGraphType = 'website';
 $openGraphImage = null;
 $articleStructuredData = null;
 $breadcrumbStructuredData = null;
 $listingStructuredData = null;
-$robotsDirective = 'index,follow';
+if ($pageDescription === '') {
+    $pageDescription = 'Automotive reviews, guides, and practical car ownership tips.';
+}
+$pageDescription = mb_substr($pageDescription, 0, 160);
+$robotsDirective = (string)getSetting('seo_default_robots', 'index,follow');
+if (!in_array($robotsDirective, ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'], true)) {
+    $robotsDirective = 'index,follow';
+}
+$defaultSocialImage = trim((string)getSetting('seo_default_og_image', ''));
+$twitterSiteUsername = trim((string)getSetting('seo_twitter_site', ''));
+$articleTitleSuffix = trim((string)getSetting('seo_article_title_suffix', SITE_TITLE));
+if ($articleTitleSuffix === '') {
+    $articleTitleSuffix = SITE_TITLE;
+}
+$imageAltSuffix = trim((string)getSetting('seo_image_alt_suffix', ' - car image'));
+$imageTitleSuffix = trim((string)getSetting('seo_image_title_suffix', ' - photo'));
+
+function buildImageSeoText($primary, $fallback, $suffix) {
+    $base = trim((string)$primary);
+    if ($base === '') {
+        $base = trim((string)$fallback);
+    }
+    $suffix = trim((string)$suffix);
+    if ($suffix !== '') {
+        $base .= ' ' . ltrim($suffix, '- ');
+    }
+    return trim($base);
+}
+
+$socialImageAltText = buildImageSeoText($pageTitle, SITE_TITLE, $imageAltSuffix);
 
 $isFilteredListing = $slug === '' && (
     trim((string)($_GET['q'] ?? '')) !== ''
@@ -32,7 +61,7 @@ if ($slug !== '') {
     $seoArticle = $seoStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($seoArticle) {
-        $pageTitle = $seoArticle['title'] . ' | ' . SITE_TITLE;
+        $pageTitle = $seoArticle['title'] . ' | ' . $articleTitleSuffix;
         $pageDescription = trim((string)($seoArticle['excerpt'] ?? ''));
         if ($pageDescription === '') {
             $pageDescription = mb_substr(trim(strip_tags((string)($seoArticle['content'] ?? ''))), 0, 160);
@@ -40,7 +69,8 @@ if ($slug !== '') {
         $pageDescription = mb_substr($pageDescription, 0, 160);
         $canonicalUrl = $baseUrl . '/index.php?slug=' . rawurlencode((string)$seoArticle['slug']);
         $openGraphType = 'article';
-        $openGraphImage = trim((string)($seoArticle['image'] ?? '')) ?: null;
+        $openGraphImage = trim((string)($seoArticle['image'] ?? '')) ?: ($defaultSocialImage !== '' ? $defaultSocialImage : null);
+        $socialImageAltText = buildImageSeoText($seoArticle['title'] ?? '', SITE_TITLE, $imageAltSuffix);
 
         $articleStructuredData = [
             '@context' => 'https://schema.org',
@@ -98,6 +128,10 @@ $websiteStructuredData = [
     ],
 ];
 
+if ($slug === '' && $openGraphImage === null && $defaultSocialImage !== '') {
+    $openGraphImage = $defaultSocialImage;
+}
+
 if ($slug === '') {
     $latestForSchema = $pdo->query("SELECT title, slug FROM articles ORDER BY id DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
     if ($latestForSchema) {
@@ -133,12 +167,17 @@ if ($slug === '') {
     <meta property="og:url" content="<?= e($canonicalUrl) ?>">
     <?php if ($openGraphImage): ?>
         <meta property="og:image" content="<?= e($openGraphImage) ?>">
+        <meta property="og:image:alt" content="<?= e($socialImageAltText) ?>">
     <?php endif; ?>
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="<?= e($pageTitle) ?>">
     <meta name="twitter:description" content="<?= e($pageDescription) ?>">
+    <?php if ($twitterSiteUsername !== ''): ?>
+        <meta name="twitter:site" content="<?= e($twitterSiteUsername) ?>">
+    <?php endif; ?>
     <?php if ($openGraphImage): ?>
         <meta name="twitter:image" content="<?= e($openGraphImage) ?>">
+        <meta name="twitter:image:alt" content="<?= e($socialImageAltText) ?>">
     <?php endif; ?>
     <script type="application/ld+json"><?= json_encode($websiteStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
     <?php if ($articleStructuredData): ?>
@@ -528,7 +567,7 @@ $baseQuery['per_page'] = $perPage;
         <a href="index.php<?= $baseQuery ? '?' . http_build_query($baseQuery) : '' ?>" class="btn btn-sm btn-outline-secondary mb-3">&larr; Back to articles</a>
         <article class="article-content bg-white p-4 rounded shadow-sm">
             <?php $heroImage = trim((string)($art['image'] ?? '')) !== '' ? $art['image'] : buildFreeArticleImageUrl($art['title'] ?? $art['slug']); ?>
-            <img src="<?= e($heroImage) ?>" alt="<?= e($art['title']) ?>" class="img-fluid rounded mb-3">
+            <img src="<?= e($heroImage) ?>" alt="<?= e(buildImageSeoText($art['title'] ?? '', $art['slug'] ?? '', $imageAltSuffix)) ?>" title="<?= e(buildImageSeoText($art['title'] ?? '', $art['slug'] ?? '', $imageTitleSuffix)) ?>" class="img-fluid rounded mb-3" loading="eager" decoding="async" fetchpriority="high">
             <?= $art['content'] ?>
             <hr>
             <div class="d-flex flex-wrap gap-2">
@@ -707,7 +746,7 @@ $baseQuery['per_page'] = $perPage;
                 <?php $cardImage = trim((string)($row['image'] ?? '')) !== '' ? $row['image'] : buildFreeArticleImageUrl($row['title'] ?? $row['slug']); ?>
                 <div class="col">
                     <div class="card h-100 shadow-sm">
-                        <img src="<?= e($cardImage) ?>" class="card-img-top" style="height:200px;object-fit:cover" alt="<?= e($row['title']) ?>">
+                        <img src="<?= e($cardImage) ?>" class="card-img-top" style="height:200px;object-fit:cover" alt="<?= e(buildImageSeoText($row['title'] ?? '', $row['slug'] ?? '', $imageAltSuffix)) ?>" title="<?= e(buildImageSeoText($row['title'] ?? '', $row['slug'] ?? '', $imageTitleSuffix)) ?>" loading="lazy" decoding="async">
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title"><?= e($row['title']) ?></h5>
                             <p class="card-text text-muted"><?= e($row['excerpt']) ?></p>

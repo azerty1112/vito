@@ -146,6 +146,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['update_seo_settings'])) {
+        $homeTitle = trim((string)($_POST['seo_home_title'] ?? ''));
+        $homeDescription = trim((string)($_POST['seo_home_description'] ?? ''));
+        $articleTitleSuffix = trim((string)($_POST['seo_article_title_suffix'] ?? ''));
+        $defaultRobots = trim((string)($_POST['seo_default_robots'] ?? 'index,follow'));
+        $defaultOgImage = trim((string)($_POST['seo_default_og_image'] ?? ''));
+        $twitterSite = trim((string)($_POST['seo_twitter_site'] ?? ''));
+        $imageAltSuffix = trim((string)($_POST['seo_image_alt_suffix'] ?? ''));
+        $imageTitleSuffix = trim((string)($_POST['seo_image_title_suffix'] ?? ''));
+
+        if (mb_strlen($homeTitle) > 120) {
+            $homeTitle = mb_substr($homeTitle, 0, 120);
+        }
+        if (mb_strlen($homeDescription) > 160) {
+            $homeDescription = mb_substr($homeDescription, 0, 160);
+        }
+        if (mb_strlen($articleTitleSuffix) > 80) {
+            $articleTitleSuffix = mb_substr($articleTitleSuffix, 0, 80);
+        }
+        if (!in_array($defaultRobots, ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'], true)) {
+            $defaultRobots = 'index,follow';
+        }
+        if (mb_strlen($defaultOgImage) > 500) {
+            $defaultOgImage = mb_substr($defaultOgImage, 0, 500);
+        }
+        if ($twitterSite !== '' && mb_substr($twitterSite, 0, 1) !== '@') {
+            $twitterSite = '@' . ltrim($twitterSite, '@');
+        }
+        if (mb_strlen($twitterSite) > 40) {
+            $twitterSite = mb_substr($twitterSite, 0, 40);
+        }
+        if (mb_strlen($imageAltSuffix) > 80) {
+            $imageAltSuffix = mb_substr($imageAltSuffix, 0, 80);
+        }
+        if (mb_strlen($imageTitleSuffix) > 80) {
+            $imageTitleSuffix = mb_substr($imageTitleSuffix, 0, 80);
+        }
+
+        setSetting('seo_home_title', $homeTitle);
+        setSetting('seo_home_description', $homeDescription);
+        setSetting('seo_article_title_suffix', $articleTitleSuffix);
+        setSetting('seo_default_robots', $defaultRobots);
+        setSetting('seo_default_og_image', $defaultOgImage);
+        setSetting('seo_twitter_site', $twitterSite);
+        setSetting('seo_image_alt_suffix', $imageAltSuffix);
+        setSetting('seo_image_title_suffix', $imageTitleSuffix);
+
+        $_SESSION['flash_message'] = 'SEO settings updated successfully.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['update_fetch_settings'])) {
         $timeout = (int)($_POST['fetch_timeout_seconds'] ?? 12);
         $timeout = max(3, min(45, $timeout));
@@ -783,6 +836,14 @@ foreach ($pageVisitStats as $visitRow) {
     $totalTrackedVisitors += (int)($visitRow['unique_visitors'] ?? 0);
 }
 $dailyLimit = (int)getSetting('daily_limit', 5);
+$seoHomeTitle = (string)getSetting('seo_home_title', SITE_TITLE);
+$seoHomeDescription = (string)getSetting('seo_home_description', 'Automotive reviews, guides, and practical car ownership tips.');
+$seoArticleTitleSuffix = (string)getSetting('seo_article_title_suffix', SITE_TITLE);
+$seoDefaultRobots = (string)getSetting('seo_default_robots', 'index,follow');
+$seoDefaultOgImage = (string)getSetting('seo_default_og_image', '');
+$seoTwitterSite = (string)getSetting('seo_twitter_site', '');
+$seoImageAltSuffix = (string)getSetting('seo_image_alt_suffix', ' - car image');
+$seoImageTitleSuffix = (string)getSetting('seo_image_title_suffix', ' - photo');
 $minWords = getSettingInt('min_words', 3000, 300, 12000);
 $urlCacheTtlSeconds = getSettingInt('url_cache_ttl_seconds', 900, 60, 86400);
 $workflowBatchSize = getSettingInt('workflow_batch_size', 8, 1, 50);
@@ -1168,6 +1229,56 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Controls max articles generated per selected workflow run.</small>
+                </div>
+            </div>
+
+            <div class="card section-card mb-3" id="seo-settings">
+                <div class="card-body">
+                    <h5><i class="bi bi-search"></i> SEO Settings</h5>
+                    <form method="post" class="row g-2 align-items-end">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <label class="form-label">Homepage Title</label>
+                            <input type="text" name="seo_home_title" class="form-control" maxlength="120" value="<?= e($seoHomeTitle) ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Homepage Meta Description</label>
+                            <textarea name="seo_home_description" class="form-control" rows="3" maxlength="160"><?= e($seoHomeDescription) ?></textarea>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Article Title Suffix</label>
+                            <input type="text" name="seo_article_title_suffix" class="form-control" maxlength="80" value="<?= e($seoArticleTitleSuffix) ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Default Robots</label>
+                            <select name="seo_default_robots" class="form-select">
+                                <option value="index,follow" <?= $seoDefaultRobots === 'index,follow' ? 'selected' : '' ?>>index,follow</option>
+                                <option value="noindex,follow" <?= $seoDefaultRobots === 'noindex,follow' ? 'selected' : '' ?>>noindex,follow</option>
+                                <option value="index,nofollow" <?= $seoDefaultRobots === 'index,nofollow' ? 'selected' : '' ?>>index,nofollow</option>
+                                <option value="noindex,nofollow" <?= $seoDefaultRobots === 'noindex,nofollow' ? 'selected' : '' ?>>noindex,nofollow</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Default Social Image URL (OG/Twitter)</label>
+                            <input type="url" name="seo_default_og_image" class="form-control" maxlength="500" value="<?= e($seoDefaultOgImage) ?>" placeholder="https://example.com/cover.jpg">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Twitter Site Username (optional)</label>
+                            <input type="text" name="seo_twitter_site" class="form-control" maxlength="40" value="<?= e($seoTwitterSite) ?>" placeholder="@yourbrand">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Auto Image ALT Suffix</label>
+                            <input type="text" name="seo_image_alt_suffix" class="form-control" maxlength="80" value="<?= e($seoImageAltSuffix) ?>" placeholder="- car image">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Auto Image Title Suffix</label>
+                            <input type="text" name="seo_image_title_suffix" class="form-control" maxlength="80" value="<?= e($seoImageTitleSuffix) ?>" placeholder="- photo">
+                        </div>
+                        <div class="col-12">
+                            <button name="update_seo_settings" value="1" class="btn btn-outline-light w-100">Save SEO Settings</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary">Manage global metadata for homepage, article title suffix, robots rules, and social sharing tags.</small>
                 </div>
             </div>
 
