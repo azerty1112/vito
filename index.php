@@ -202,14 +202,6 @@ if ($slug === '') {
             border-bottom: 1px solid rgba(148, 163, 184, 0.25);
         }
 
-        .page-hero {
-            background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(15, 23, 42, 0.08), rgba(245, 158, 11, 0.16));
-            border: 1px solid rgba(249, 115, 22, 0.2);
-            border-radius: 1.25rem;
-            padding: 1.5rem;
-            box-shadow: 0 18px 45px rgba(249, 115, 22, 0.16);
-        }
-
         .stats-card {
             background: linear-gradient(145deg, #ffffff, #f8fafc);
             border-radius: 1rem;
@@ -490,7 +482,6 @@ $perPageAllowed = [6, 9, 12, 18];
 if (!in_array($perPage, $perPageAllowed, true)) {
     $perPage = 9;
 }
-$workflowSummary = getContentWorkflowSummary();
 $sortMap = [
     'newest' => 'id DESC',
     'oldest' => 'id ASC',
@@ -569,29 +560,7 @@ $baseQuery['per_page'] = $perPage;
 
 <?php else: ?>
     <?php recordPageVisit('home', 'Homepage'); ?>
-    <div class="page-hero d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-        <div>
-            <span class="badge text-bg-warning text-dark mb-2">Automotive Insights</span>
-            <h1 class="display-6 mb-1">Latest Automotive Articles</h1>
-            <p class="text-muted mb-0 hero-subtitle">Explore curated guides, reviews, and practical tips from the car world — now with a cleaner, more modern reading experience.</p>
-            <?php
-            $isReady = $workflowSummary['health'] === 'ready';
-            $statusClass = $isReady ? 'ready' : 'warn';
-            $statusText = $isReady
-                ? 'Content system is healthy and ready to publish.'
-                : ($workflowSummary['health'] === 'missing_sources'
-                    ? 'No sources linked to selected workflow.'
-                    : 'Auto scheduler is currently disabled.');
-            ?>
-            <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
-                <span class="status-chip <?= $statusClass ?>">
-                    <?= $isReady ? '✅' : '⚠️' ?> <?= e($statusText) ?>
-                </span>
-                <span class="meta-pill">Workflow: <?= e($workflowSummary['selected_workflow_label']) ?></span>
-                <span class="meta-pill">Sources: <?= (int)$workflowSummary['selected_sources'] ?></span>
-                <span class="meta-pill">Daily limit: <?= (int)$workflowSummary['daily_limit'] ?></span>
-            </div>
-        </div>
+    <div class="d-flex justify-content-end mb-4">
         <div class="btn-group" role="group" aria-label="View switch">
             <?php $gridQuery = array_merge($baseQuery, ['view' => 'grid']); ?>
             <?php $listQuery = array_merge($baseQuery, ['view' => 'list']); ?>
