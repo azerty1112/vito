@@ -153,10 +153,10 @@ if ($slug === '') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
-            --brand-primary: #0d6efd;
+            --brand-primary: #f97316;
             --brand-dark: #111827;
             --surface: #ffffff;
-            --app-bg: radial-gradient(circle at 10% 20%, #dbeafe 0%, #f5f3ff 42%, #ecfeff 100%);
+            --app-bg: radial-gradient(circle at 10% 20%, #ffedd5 0%, #fff7ed 42%, #fef3c7 100%);
         }
 
         body {
@@ -181,13 +181,13 @@ if ($slug === '') {
         body::before {
             top: -90px;
             right: -70px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.75), rgba(59, 130, 246, 0));
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.7), rgba(249, 115, 22, 0));
         }
 
         body::after {
             bottom: -120px;
             left: -70px;
-            background: radial-gradient(circle, rgba(139, 92, 246, 0.65), rgba(139, 92, 246, 0));
+            background: radial-gradient(circle, rgba(251, 146, 60, 0.65), rgba(251, 146, 60, 0));
         }
 
         .navbar-brand {
@@ -203,11 +203,11 @@ if ($slug === '') {
         }
 
         .page-hero {
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(15, 23, 42, 0.08), rgba(14, 116, 144, 0.16));
-            border: 1px solid rgba(59, 130, 246, 0.2);
+            background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(15, 23, 42, 0.08), rgba(245, 158, 11, 0.16));
+            border: 1px solid rgba(249, 115, 22, 0.2);
             border-radius: 1.25rem;
             padding: 1.5rem;
-            box-shadow: 0 18px 45px rgba(37, 99, 235, 0.14);
+            box-shadow: 0 18px 45px rgba(249, 115, 22, 0.16);
         }
 
         .stats-card {
@@ -233,7 +233,7 @@ if ($slug === '') {
 
         .card:hover {
             transform: translateY(-6px);
-            box-shadow: 0 18px 35px rgba(13, 110, 253, 0.18);
+            box-shadow: 0 18px 35px rgba(249, 115, 22, 0.2);
         }
 
         .card-img-top {
@@ -241,13 +241,13 @@ if ($slug === '') {
         }
 
         .btn-primary {
-            background: linear-gradient(120deg, #2563eb, #1d4ed8);
+            background: linear-gradient(120deg, #ea580c, #f97316);
             border: none;
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+            box-shadow: 0 8px 20px rgba(234, 88, 12, 0.28);
         }
 
         .btn-primary:hover {
-            background: linear-gradient(120deg, #1d4ed8, #1e40af);
+            background: linear-gradient(120deg, #c2410c, #ea580c);
         }
 
         .pagination .page-link {
@@ -289,8 +289,8 @@ if ($slug === '') {
 
         .toolbar-form .form-control:focus,
         .toolbar-form .form-select:focus {
-            border-color: #93c5fd;
-            box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.2);
+            border-color: #fdba74;
+            box-shadow: 0 0 0 0.2rem rgba(249, 115, 22, 0.2);
         }
 
         .content-shell {
@@ -314,9 +314,9 @@ if ($slug === '') {
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            background: #eff6ff;
-            border: 1px solid #dbeafe;
-            color: #1e3a8a;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
             padding: 0.3rem 0.6rem;
             border-radius: 999px;
             font-size: 0.82rem;
@@ -373,8 +373,8 @@ if ($slug === '') {
         }
 
         .quick-categories a.active {
-            background: #1d4ed8;
-            border-color: #1d4ed8;
+            background: #ea580c;
+            border-color: #ea580c;
             color: #fff;
         }
 
@@ -383,7 +383,7 @@ if ($slug === '') {
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: 1rem;
-            box-shadow: 0 18px 35px rgba(13, 110, 253, 0.23);
+            box-shadow: 0 18px 35px rgba(234, 88, 12, 0.24);
         }
 
         .featured-spotlight::after {
@@ -571,7 +571,7 @@ $baseQuery['per_page'] = $perPage;
     <?php recordPageVisit('home', 'Homepage'); ?>
     <div class="page-hero d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
         <div>
-            <span class="badge text-bg-primary mb-2">Automotive Insights</span>
+            <span class="badge text-bg-warning text-dark mb-2">Automotive Insights</span>
             <h1 class="display-6 mb-1">Latest Automotive Articles</h1>
             <p class="text-muted mb-0 hero-subtitle">Explore curated guides, reviews, and practical tips from the car world — now with a cleaner, more modern reading experience.</p>
             <?php
@@ -704,7 +704,7 @@ $baseQuery['per_page'] = $perPage;
 
     <?php if ($featured): ?>
         <?php $featuredQuery = array_merge($baseQuery, ['slug' => $featured['slug']]); ?>
-        <section class="featured-spotlight mb-4 p-4 text-white" style="background:linear-gradient(125deg,#2563eb,#0f172a 60%,#0f766e);">
+        <section class="featured-spotlight mb-4 p-4 text-white" style="background:linear-gradient(125deg,#ea580c,#0f172a 60%,#b45309);">
             <small class="text-uppercase">Featured article</small>
             <h2 class="h4 mt-2"><?= e($featured['title']) ?></h2>
             <p class="mb-3"><?= e($featured['excerpt']) ?></p>
