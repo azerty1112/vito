@@ -146,6 +146,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['update_pipeline_settings'])) {
+        $minWords = (int)($_POST['min_words'] ?? 3000);
+        $minWords = max(300, min(12000, $minWords));
+
+        $cacheTtl = (int)($_POST['url_cache_ttl_seconds'] ?? 900);
+        $cacheTtl = max(60, min(86400, $cacheTtl));
+
+        $batchSize = (int)($_POST['workflow_batch_size'] ?? 8);
+        $batchSize = max(1, min(50, $batchSize));
+
+        $queueRetryDelay = (int)($_POST['queue_retry_delay_seconds'] ?? 60);
+        $queueRetryDelay = max(5, min(7200, $queueRetryDelay));
+
+        $queueMaxAttempts = (int)($_POST['queue_max_attempts'] ?? 3);
+        $queueMaxAttempts = max(1, min(20, $queueMaxAttempts));
+
+        $intervalMinutes = (int)($_POST['auto_publish_interval_minutes'] ?? 180);
+        $intervalMinutes = max(1, min(1440, $intervalMinutes));
+
+        setSetting('min_words', (string)$minWords);
+        setSetting('url_cache_ttl_seconds', (string)$cacheTtl);
+        setSetting('workflow_batch_size', (string)$batchSize);
+        setSetting('queue_retry_delay_seconds', (string)$queueRetryDelay);
+        setSetting('queue_max_attempts', (string)$queueMaxAttempts);
+        setSetting('auto_publish_interval_minutes', (string)$intervalMinutes);
+
+        // Keep minute + second based scheduler settings synchronized.
+        setSetting('auto_publish_interval_seconds', (string)($intervalMinutes * 60));
+
+        $_SESSION['flash_message'] = 'Pipeline configuration updated successfully.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
 
     if (isset($_POST['update_auto_scheduler'])) {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
@@ -620,6 +655,11 @@ foreach ($pageVisitStats as $visitRow) {
     $totalTrackedVisitors += (int)($visitRow['unique_visitors'] ?? 0);
 }
 $dailyLimit = (int)getSetting('daily_limit', 5);
+$minWords = getSettingInt('min_words', 3000, 300, 12000);
+$urlCacheTtlSeconds = getSettingInt('url_cache_ttl_seconds', 900, 60, 86400);
+$workflowBatchSize = getSettingInt('workflow_batch_size', 8, 1, 50);
+$queueRetryDelaySeconds = getSettingInt('queue_retry_delay_seconds', 60, 5, 7200);
+$queueMaxAttempts = getSettingInt('queue_max_attempts', 3, 1, 20);
 $fetchTimeoutSeconds = getSettingInt('fetch_timeout_seconds', 12, 3, 45);
 $fetchRetryAttempts = getSettingInt('fetch_retry_attempts', 3, 1, 5);
 $fetchRetryBackoffMs = getSettingInt('fetch_retry_backoff_ms', 350, 100, 3000);
@@ -629,6 +669,7 @@ $selectedWorkflow = getSelectedContentWorkflow();
 $workflowSummary = getContentWorkflowSummary();
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
 $autoPublishInterval = getAutoPublishIntervalSeconds();
+$autoPublishIntervalMinutes = max(1, (int)round($autoPublishInterval / 60));
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
 $cronUrl = getCronEndpointUrl();
 $categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
@@ -918,7 +959,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="col-xl-4">
             <div class="card section-card mb-3" id="publishing-settings">
                 <div class="card-body">
-                    <h5><i class="bi bi-sliders"></i> Publishing Settings</h5>
+                    <h5><i class="bi bi-sliders"></i> Daily Publishing Limit</h5>
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-8">
@@ -930,8 +971,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Controls max articles generated per selected workflow run.</small>
+                </div>
+            </div>
 
-                    <form method="post" class="row g-2 align-items-end mt-3">
+            <div class="card section-card mb-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-shield-check"></i> Fetch Protection Settings</h5>
+                    <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-4">
                             <label class="form-label">Fetch Timeout (s)</label>
@@ -958,8 +1004,50 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Anti-block controls: timeout, retries with backoff, URL queue cooldown, and custom UA.</small>
+                </div>
+            </div>
 
-                    <form method="post" class="row g-2 align-items-end mt-1">
+            <div class="card section-card mb-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-cpu"></i> Core Pipeline Config</h5>
+                    <form method="post" class="row g-2 align-items-end">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-6">
+                            <label class="form-label">Minimum Article Words</label>
+                            <input type="number" name="min_words" class="form-control" min="300" max="12000" value="<?= (int)$minWords ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">URL Cache TTL (s)</label>
+                            <input type="number" name="url_cache_ttl_seconds" class="form-control" min="60" max="86400" value="<?= (int)$urlCacheTtlSeconds ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Workflow Batch Size</label>
+                            <input type="number" name="workflow_batch_size" class="form-control" min="1" max="50" value="<?= (int)$workflowBatchSize ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Queue Retry Delay (s)</label>
+                            <input type="number" name="queue_retry_delay_seconds" class="form-control" min="5" max="7200" value="<?= (int)$queueRetryDelaySeconds ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Queue Max Attempts</label>
+                            <input type="number" name="queue_max_attempts" class="form-control" min="1" max="20" value="<?= (int)$queueMaxAttempts ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Auto Publish Interval (minutes)</label>
+                            <input type="number" name="auto_publish_interval_minutes" class="form-control" min="1" max="1440" value="<?= (int)$autoPublishIntervalMinutes ?>">
+                        </div>
+                        <div class="col-12">
+                            <button name="update_pipeline_settings" value="1" class="btn btn-outline-info w-100">Update Pipeline Config</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary">Includes the main configuration values from <code>config.php</code> so you can manage them from one place.</small>
+                </div>
+            </div>
+
+            <div class="card section-card mb-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-diagram-3"></i> Content Workflow Selection</h5>
+                    <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-8">
                             <label class="form-label">Selected Content Workflow</label>
@@ -973,9 +1061,12 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Cron and manual run will execute the selected workflow only.</small>
+                </div>
+            </div>
 
-                    <hr class="border-secondary-subtle my-3">
-                    <h6><i class="bi bi-robot"></i> AI Auto Publish Scheduler</h6>
+            <div class="card section-card mb-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-robot"></i> AI Auto Publish Scheduler</h5>
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-12">
@@ -993,6 +1084,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary d-block mt-2">Set to 10 seconds for a fast demo. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+
                     <div class="alert alert-secondary mt-3 mb-2">
                         <div class="small text-uppercase text-muted mb-1">Hosting Cron URL</div>
                         <code class="d-block text-break"><?= e($cronUrl) ?></code>
@@ -1012,6 +1104,17 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <i class="bi bi-stars"></i> Generate Demo Content Pack
                         </button>
                     </form>
+                </div>
+            </div>
+
+            <div class="card section-card mb-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-gear-wide-connected"></i> System Constants (Read Only)</h5>
+                    <div class="small">
+                        <div><span class="text-secondary">SITE_TITLE:</span> <code><?= e(SITE_TITLE) ?></code></div>
+                        <div><span class="text-secondary">DB_FILE:</span> <code><?= e(DB_FILE) ?></code></div>
+                        <div><span class="text-secondary">Password Hash:</span> <code><?= e(substr(PASSWORD_HASH, 0, 20)) ?>...</code></div>
+                    </div>
                 </div>
             </div>
 
