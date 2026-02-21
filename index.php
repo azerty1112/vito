@@ -341,6 +341,36 @@ if ($slug === '') {
             border-radius: 0.7rem;
         }
 
+        .inline-ad-unit {
+            margin: 1.5rem 0;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            background: linear-gradient(160deg, #fff7ed, #ffffff 60%);
+            border-radius: 0.9rem;
+            padding: 0.9rem;
+        }
+
+        .inline-ad-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #9a3412;
+            margin-bottom: 0.45rem;
+            font-weight: 700;
+        }
+
+        .ad-unit-inner {
+            min-height: 80px;
+            border: 1px dashed rgba(251, 146, 60, 0.7);
+            border-radius: 0.75rem;
+            padding: 0.9rem;
+            color: #9a3412;
+            background: rgba(255, 247, 237, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
         .meta-pill {
             display: inline-flex;
             align-items: center;
@@ -564,11 +594,12 @@ $baseQuery['per_page'] = $perPage;
     ?>
 
     <?php if ($art): ?>
+        <?php $articleContentWithAds = injectAdsIntoArticleContent((string)($art['content'] ?? ''), (string)($art['title'] ?? '')); ?>
         <a href="index.php<?= $baseQuery ? '?' . http_build_query($baseQuery) : '' ?>" class="btn btn-sm btn-outline-secondary mb-3">&larr; Back to articles</a>
         <article class="article-content bg-white p-4 rounded shadow-sm">
             <?php $heroImage = trim((string)($art['image'] ?? '')) !== '' ? $art['image'] : buildFreeArticleImageUrl($art['title'] ?? $art['slug']); ?>
             <img src="<?= e($heroImage) ?>" alt="<?= e(buildImageSeoText($art['title'] ?? '', $art['slug'] ?? '', $imageAltSuffix)) ?>" title="<?= e(buildImageSeoText($art['title'] ?? '', $art['slug'] ?? '', $imageTitleSuffix)) ?>" class="img-fluid rounded mb-3" loading="eager" decoding="async" fetchpriority="high">
-            <?= $art['content'] ?>
+            <?= $articleContentWithAds ?>
             <hr>
             <div class="d-flex flex-wrap gap-2">
                 <span class="meta-pill">⏱ <?= estimateReadingTime($art['content']) ?> min read</span>

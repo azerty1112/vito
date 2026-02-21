@@ -116,7 +116,14 @@ $defaults = [
     'seo_default_og_image' => '',
     'seo_twitter_site' => '',
     'seo_image_alt_suffix' => ' - car image',
-    'seo_image_title_suffix' => ' - photo'
+    'seo_image_title_suffix' => ' - photo',
+    'ads_enabled' => '0',
+    'ads_injection_mode' => 'smart',
+    'ads_paragraph_interval' => '4',
+    'ads_max_units_per_article' => '2',
+    'ads_min_words_before_first_injection' => '180',
+    'ads_label_text' => 'Sponsored',
+    'ads_html_code' => '<div class="ad-unit-inner">Place your ad code here</div>'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);
