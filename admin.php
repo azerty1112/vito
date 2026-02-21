@@ -998,6 +998,14 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         .progress-bar.bg-info {
             background-color: #ef4444 !important;
         }
+        #pipeline-config-section h5,
+        #pipeline-config-section h6,
+        #pipeline-config-section .form-label,
+        #auto-scheduler-section h5,
+        #auto-scheduler-section h6,
+        #auto-scheduler-section .form-label {
+            color: #ff4d4f !important;
+        }
     </style>
 </head>
 <body class="text-light">
@@ -1187,9 +1195,9 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
 
-            <div class="card section-card mb-3">
+            <div class="card section-card mb-3" id="pipeline-config-section">
                 <div class="card-body">
-                    <h5><i class="bi bi-cpu"></i> Core Pipeline Config</h5>
+                    <h5 class="text-danger"><i class="bi bi-cpu"></i> Core Pipeline Config</h5>
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-6">
@@ -1244,9 +1252,9 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
 
-            <div class="card section-card mb-3">
+            <div class="card section-card mb-3" id="auto-scheduler-section">
                 <div class="card-body">
-                    <h5><i class="bi bi-robot"></i> AI Auto Publish Scheduler</h5>
+                    <h5 class="text-danger"><i class="bi bi-robot"></i> AI Auto Publish Scheduler</h5>
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-12">
