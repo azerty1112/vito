@@ -30,9 +30,19 @@ function getSiteBaseUrl() {
 }
 
 function getVisitorFingerprint() {
-    $ip = trim((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown-ip'));
-    $agent = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'unknown-agent'));
-    return hash('sha256', $ip . '|' . $agent);
+    $forwardedFor = trim((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+    if ($forwardedFor !== '') {
+        $parts = array_map('trim', explode(',', $forwardedFor));
+        $ip = (string)($parts[0] ?? '');
+    } else {
+        $ip = trim((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown-ip'));
+    }
+
+    if ($ip === '') {
+        $ip = 'unknown-ip';
+    }
+
+    return hash('sha256', $ip);
 }
 
 function recordPageVisit($pageKey, $pageLabel) {
@@ -49,7 +59,10 @@ function recordPageVisit($pageKey, $pageLabel) {
     $stmt = $pdo->prepare("INSERT INTO page_visits (page_key, page_label, visitor_hash, views, created_at, updated_at)
         VALUES (:page_key, :page_label, :visitor_hash, 1, :created_at, :updated_at)
         ON CONFLICT(page_key, visitor_hash) DO UPDATE SET
-            views = views + 1,
+            views = views + CASE
+                WHEN strftime('%Y-%m-%d', page_visits.updated_at, 'unixepoch') = strftime('%Y-%m-%d', excluded.updated_at, 'unixepoch') THEN 0
+                ELSE 1
+            END,
             page_label = excluded.page_label,
             updated_at = excluded.updated_at");
 
