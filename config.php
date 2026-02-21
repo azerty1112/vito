@@ -97,7 +97,17 @@ $defaults = [
     'workflow_batch_size' => '8',
     'queue_retry_delay_seconds' => '60',
     'queue_max_attempts' => '3',
-    'queue_source_cooldown_seconds' => '180'
+    'queue_source_cooldown_seconds' => '180',
+    'auto_title_mode' => 'template',
+    'auto_title_min_year_offset' => '0',
+    'auto_title_max_year_offset' => '1',
+    'auto_title_brands' => "Toyota\nBMW\nMercedes\nAudi\nPorsche\nTesla\nHyundai\nKia\nFord\nNissan\nVolvo\nLexus",
+    'auto_title_models' => "SUV\nSedan\nCoupe\nEV Crossover\nHybrid SUV\nPerformance Hatchback\nElectric Sedan\nLuxury Wagon\nPremium Crossover",
+    'auto_title_modifiers' => "Review\nSpecs\nPrice\nComparison\nBuying Guide\nOwnership Cost",
+    'auto_title_audiences' => "Smart Buyers\nFirst-Time Premium Buyers\nTech-Focused Drivers\nFamily Buyers",
+    'auto_title_angles' => "Full Review and Buyer Guide\nLong-Term Ownership Analysis\nReal-World Efficiency Test\nDaily Driving Impression\nSmart Technology Deep Dive\nComparison and Value Breakdown\nReliability, Resale, and Total Cost Breakdown",
+    'auto_title_templates' => "{year} {brand} {model} {modifier}: {angle} for {audience}\n{year} {brand} {model} {modifier} — {angle} ({audience})\n{year} {brand} {model}: {modifier} + {angle}",
+    'auto_title_fixed_titles' => ''
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);

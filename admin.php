@@ -196,6 +196,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['update_auto_title_settings'])) {
+        $mode = trim((string)($_POST['auto_title_mode'] ?? 'template'));
+        if (!in_array($mode, ['template', 'list'], true)) {
+            $mode = 'template';
+        }
+
+        $minYearOffset = (int)($_POST['auto_title_min_year_offset'] ?? 0);
+        $maxYearOffset = (int)($_POST['auto_title_max_year_offset'] ?? 1);
+        $minYearOffset = max(-1, min(2, $minYearOffset));
+        $maxYearOffset = max(-1, min(3, $maxYearOffset));
+        if ($maxYearOffset < $minYearOffset) {
+            [$minYearOffset, $maxYearOffset] = [$maxYearOffset, $minYearOffset];
+        }
+
+        $fields = [
+            'auto_title_brands',
+            'auto_title_models',
+            'auto_title_modifiers',
+            'auto_title_audiences',
+            'auto_title_angles',
+            'auto_title_templates',
+            'auto_title_fixed_titles',
+        ];
+
+        setSetting('auto_title_mode', $mode);
+        setSetting('auto_title_min_year_offset', (string)$minYearOffset);
+        setSetting('auto_title_max_year_offset', (string)$maxYearOffset);
+
+        foreach ($fields as $fieldKey) {
+            $raw = trim((string)($_POST[$fieldKey] ?? ''));
+            if (mb_strlen($raw) > 10000) {
+                $raw = mb_substr($raw, 0, 10000);
+            }
+
+            $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+            $clean = [];
+            foreach ($lines as $line) {
+                $line = trim((string)$line);
+                if ($line !== '') {
+                    $clean[] = $line;
+                }
+            }
+
+            if ($fieldKey === 'auto_title_templates') {
+                $allowedVars = ['{year}', '{brand}', '{model}', '{modifier}', '{angle}', '{audience}'];
+                $validated = [];
+                foreach ($clean as $tpl) {
+                    $hasVar = false;
+                    foreach ($allowedVars as $var) {
+                        if (mb_strpos($tpl, $var) !== false) {
+                            $hasVar = true;
+                            break;
+                        }
+                    }
+                    if ($hasVar) {
+                        $validated[] = $tpl;
+                    }
+                }
+                $clean = $validated;
+            }
+
+            $value = implode("\n", array_values(array_unique($clean)));
+            setSetting($fieldKey, $value);
+        }
+
+        $_SESSION['flash_message'] = 'Auto title generation controls updated.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['preview_auto_titles'])) {
+        $samples = [];
+        for ($i = 0; $i < 5; $i++) {
+            $samples[] = generateAutoTitle();
+        }
+        $_SESSION['flash_message'] = 'Title preview: ' . implode(' | ', $samples);
+        $_SESSION['flash_type'] = 'info';
+        header('Location: admin.php');
+        exit;
+    }
+
+    if (isset($_POST['reset_auto_title_defaults'])) {
+        $defaults = getAutoTitleDefaultSettings();
+        foreach ($defaults as $k => $v) {
+            setSetting($k, (string)$v);
+        }
+        $_SESSION['flash_message'] = 'Auto title controls reset to defaults.';
+        $_SESSION['flash_type'] = 'warning';
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['auto_generate_now'])) {
         $result = publishAutoArticleBySchedule(true);
         if (($result['published'] ?? 0) === 1) {
@@ -671,6 +764,20 @@ $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
 $autoPublishInterval = getAutoPublishIntervalSeconds();
 $autoPublishIntervalMinutes = max(1, (int)round($autoPublishInterval / 60));
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
+$autoTitleDefaults = getAutoTitleDefaultSettings();
+$autoTitleMode = (string)getSetting('auto_title_mode', $autoTitleDefaults['auto_title_mode']);
+if (!in_array($autoTitleMode, ['template', 'list'], true)) {
+    $autoTitleMode = 'template';
+}
+$autoTitleMinYearOffset = getSettingInt('auto_title_min_year_offset', (int)$autoTitleDefaults['auto_title_min_year_offset'], -1, 2);
+$autoTitleMaxYearOffset = getSettingInt('auto_title_max_year_offset', (int)$autoTitleDefaults['auto_title_max_year_offset'], -1, 3);
+$autoTitleBrands = (string)getSetting('auto_title_brands', $autoTitleDefaults['auto_title_brands']);
+$autoTitleModels = (string)getSetting('auto_title_models', $autoTitleDefaults['auto_title_models']);
+$autoTitleModifiers = (string)getSetting('auto_title_modifiers', $autoTitleDefaults['auto_title_modifiers']);
+$autoTitleAudiences = (string)getSetting('auto_title_audiences', $autoTitleDefaults['auto_title_audiences']);
+$autoTitleAngles = (string)getSetting('auto_title_angles', $autoTitleDefaults['auto_title_angles']);
+$autoTitleTemplates = (string)getSetting('auto_title_templates', $autoTitleDefaults['auto_title_templates']);
+$autoTitleFixedTitles = (string)getSetting('auto_title_fixed_titles', $autoTitleDefaults['auto_title_fixed_titles']);
 $cronUrl = getCronEndpointUrl();
 $categoryOptions = $pdo->query("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -1084,6 +1191,66 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary d-block mt-2">Set to 10 seconds for a fast demo. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+
+                    <hr class="border-secondary-subtle my-3">
+                    <h6><i class="bi bi-type"></i> Auto Title Generator Controls</h6>
+                    <form method="post" class="row g-2 mt-1">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-6">
+                            <label class="form-label">Mode</label>
+                            <select name="auto_title_mode" class="form-select">
+                                <option value="template" <?= $autoTitleMode === 'template' ? 'selected' : '' ?>>Template + Variables</option>
+                                <option value="list" <?= $autoTitleMode === 'list' ? 'selected' : '' ?>>Fixed Titles List</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label">Min Year Offset</label>
+                            <input type="number" name="auto_title_min_year_offset" class="form-control" min="-1" max="2" value="<?= (int)$autoTitleMinYearOffset ?>">
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label">Max Year Offset</label>
+                            <input type="number" name="auto_title_max_year_offset" class="form-control" min="-1" max="3" value="<?= (int)$autoTitleMaxYearOffset ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Brands (one per line)</label>
+                            <textarea name="auto_title_brands" class="form-control" rows="4"><?= e($autoTitleBrands) ?></textarea>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Models (one per line)</label>
+                            <textarea name="auto_title_models" class="form-control" rows="4"><?= e($autoTitleModels) ?></textarea>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">SEO Modifiers (one per line)</label>
+                            <textarea name="auto_title_modifiers" class="form-control" rows="4"><?= e($autoTitleModifiers) ?></textarea>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Audience Segments (one per line)</label>
+                            <textarea name="auto_title_audiences" class="form-control" rows="4"><?= e($autoTitleAudiences) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Angles (one per line)</label>
+                            <textarea name="auto_title_angles" class="form-control" rows="4"><?= e($autoTitleAngles) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Templates (one per line)</label>
+                            <textarea name="auto_title_templates" class="form-control" rows="4"><?= e($autoTitleTemplates) ?></textarea>
+                            <small class="text-secondary">Allowed variables: <code>{year}</code>, <code>{brand}</code>, <code>{model}</code>, <code>{modifier}</code>, <code>{angle}</code>, <code>{audience}</code>.</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Fixed Titles (one per line, used when mode = Fixed Titles List)</label>
+                            <textarea name="auto_title_fixed_titles" class="form-control" rows="4"><?= e($autoTitleFixedTitles) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button name="update_auto_title_settings" value="1" class="btn btn-outline-primary w-100">Save Title Generation Controls</button>
+                        </div>
+                        <div class="col-6">
+                            <button name="preview_auto_titles" value="1" class="btn btn-outline-info w-100">Preview 5 Generated Titles</button>
+                        </div>
+                        <div class="col-6">
+                            <button name="reset_auto_title_defaults" value="1" class="btn btn-outline-secondary w-100" onclick="return confirm('Reset all title controls to defaults?');">Reset to Defaults</button>
+
+                        </div>
+                    </form>
 
                     <div class="alert alert-secondary mt-3 mb-2">
                         <div class="small text-uppercase text-muted mb-1">Hosting Cron URL</div>
