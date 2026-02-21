@@ -788,6 +788,174 @@ function getSettingInt($key, $default = 0, $min = null, $max = null) {
     return $value;
 }
 
+function getAdSettings() {
+    $mode = trim((string)getSetting('ads_injection_mode', 'smart'));
+    if (!in_array($mode, ['smart', 'interval'], true)) {
+        $mode = 'smart';
+    }
+
+    $label = trim((string)getSetting('ads_label_text', 'Sponsored'));
+    if ($label === '') {
+        $label = 'Sponsored';
+    }
+
+    return [
+        'enabled' => getSettingInt('ads_enabled', 0, 0, 1) === 1,
+        'mode' => $mode,
+        'paragraph_interval' => getSettingInt('ads_paragraph_interval', 4, 2, 10),
+        'max_units' => getSettingInt('ads_max_units_per_article', 2, 1, 6),
+        'min_words_before_first' => getSettingInt('ads_min_words_before_first_injection', 180, 80, 600),
+        'label' => mb_substr($label, 0, 40),
+        'html_code' => trim((string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>')),
+    ];
+}
+
+function countVisibleWords($text) {
+    $text = trim((string)$text);
+    if ($text === '') {
+        return 0;
+    }
+
+    if (preg_match_all('/[\p{L}\p{N}]+/u', $text, $matches)) {
+        return count($matches[0]);
+    }
+
+    return str_word_count($text);
+}
+
+function buildInlineAdUnitHtml(array $adSettings, $position = 1) {
+    $safePosition = max(1, (int)$position);
+    $label = e($adSettings['label'] ?? 'Sponsored');
+    $adCode = (string)($adSettings['html_code'] ?? '');
+    if ($adCode === '') {
+        $adCode = '<div class="ad-unit-inner">Place your ad code here</div>';
+    }
+
+    return '<aside class="inline-ad-unit" data-ad-slot="' . $safePosition . '">'
+        . '<div class="inline-ad-label">' . $label . '</div>'
+        . $adCode
+        . '</aside>';
+}
+
+function injectAdsIntoArticleContent($html, $articleTitle = '') {
+    $content = trim((string)$html);
+    if ($content === '') {
+        return $html;
+    }
+
+    if (stripos($content, 'inline-ad-unit') !== false) {
+        return $html;
+    }
+
+    $adSettings = getAdSettings();
+    if (!$adSettings['enabled']) {
+        return $html;
+    }
+
+    $maxUnits = (int)$adSettings['max_units'];
+    $interval = (int)$adSettings['paragraph_interval'];
+    $minWords = (int)$adSettings['min_words_before_first'];
+
+    $wrappedHtml = '<div id="article-content-root">' . $content . '</div>';
+    $previousUseErrors = libxml_use_internal_errors(true);
+    $dom = new DOMDocument('1.0', 'UTF-8');
+    $loaded = $dom->loadHTML('<?xml encoding="utf-8" ?>' . $wrappedHtml, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousUseErrors);
+
+    if (!$loaded) {
+        return $html;
+    }
+
+    $root = $dom->getElementById('article-content-root');
+    if (!$root) {
+        return $html;
+    }
+
+    $candidates = [];
+    foreach ($root->childNodes as $child) {
+        if (!($child instanceof DOMElement)) {
+            continue;
+        }
+
+        $tag = strtolower($child->tagName);
+        if (!in_array($tag, ['p', 'ul', 'ol', 'blockquote', 'h2', 'h3'], true)) {
+            continue;
+        }
+
+        $text = trim((string)$child->textContent);
+        if ($text === '') {
+            continue;
+        }
+
+        $candidates[] = [
+            'node' => $child,
+            'tag' => $tag,
+            'words' => countVisibleWords($text),
+            'text_len' => mb_strlen($text),
+        ];
+    }
+
+    if (count($candidates) < 3) {
+        return $html;
+    }
+
+    $indexes = [];
+    $runningWords = 0;
+    $lastIndex = -999;
+
+    foreach ($candidates as $idx => $candidate) {
+        $runningWords += (int)$candidate['words'];
+        if ($idx < 1 || $idx >= count($candidates) - 1) {
+            continue;
+        }
+
+        $shouldInject = false;
+        if ($adSettings['mode'] === 'interval') {
+            $shouldInject = $idx > 0 && $idx % $interval === 0;
+        } else {
+            $substantial = (int)$candidate['text_len'] >= 180 || (int)$candidate['words'] >= 28;
+            $firstThreshold = $runningWords >= $minWords;
+            $spacingOkay = ($idx - $lastIndex) >= max(2, $interval - 1);
+            $shouldInject = $substantial && $firstThreshold && $spacingOkay;
+        }
+
+        if ($shouldInject) {
+            $indexes[] = $idx;
+            $lastIndex = $idx;
+            if (count($indexes) >= $maxUnits) {
+                break;
+            }
+        }
+    }
+
+    if (!$indexes) {
+        return $html;
+    }
+
+    $adCount = 0;
+    foreach ($indexes as $idx) {
+        $targetNode = $candidates[$idx]['node'];
+        $adCount++;
+
+        $fragment = $dom->createDocumentFragment();
+        $fragment->appendXML(buildInlineAdUnitHtml($adSettings, $adCount));
+
+        if ($targetNode->nextSibling) {
+            $targetNode->parentNode->insertBefore($fragment, $targetNode->nextSibling);
+        } else {
+            $targetNode->parentNode->appendChild($fragment);
+        }
+    }
+
+    $result = '';
+    foreach ($root->childNodes as $child) {
+        $result .= $dom->saveHTML($child);
+    }
+
+    return $result !== '' ? $result : $html;
+}
+
 
 function getAutoPublishIntervalSeconds() {
     $secondsRaw = getSetting('auto_publish_interval_seconds', null);

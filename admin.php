@@ -199,6 +199,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+
+    if (isset($_POST['update_ads_settings'])) {
+        $adsEnabled = isset($_POST['ads_enabled']) ? 1 : 0;
+        $adsMode = trim((string)($_POST['ads_injection_mode'] ?? 'smart'));
+        if (!in_array($adsMode, ['smart', 'interval'], true)) {
+            $adsMode = 'smart';
+        }
+
+        $adsInterval = (int)($_POST['ads_paragraph_interval'] ?? 4);
+        $adsInterval = max(2, min(10, $adsInterval));
+
+        $adsMaxUnits = (int)($_POST['ads_max_units_per_article'] ?? 2);
+        $adsMaxUnits = max(1, min(6, $adsMaxUnits));
+
+        $adsMinWords = (int)($_POST['ads_min_words_before_first_injection'] ?? 180);
+        $adsMinWords = max(80, min(600, $adsMinWords));
+
+        $adsLabel = trim((string)($_POST['ads_label_text'] ?? 'Sponsored'));
+        if ($adsLabel === '') {
+            $adsLabel = 'Sponsored';
+        }
+        if (mb_strlen($adsLabel) > 40) {
+            $adsLabel = mb_substr($adsLabel, 0, 40);
+        }
+
+        $adsHtmlCode = trim((string)($_POST['ads_html_code'] ?? ''));
+        if ($adsHtmlCode === '') {
+            $adsHtmlCode = '<div class="ad-unit-inner">Place your ad code here</div>';
+        }
+        if (mb_strlen($adsHtmlCode) > 12000) {
+            $adsHtmlCode = mb_substr($adsHtmlCode, 0, 12000);
+        }
+
+        setSetting('ads_enabled', (string)$adsEnabled);
+        setSetting('ads_injection_mode', $adsMode);
+        setSetting('ads_paragraph_interval', (string)$adsInterval);
+        setSetting('ads_max_units_per_article', (string)$adsMaxUnits);
+        setSetting('ads_min_words_before_first_injection', (string)$adsMinWords);
+        setSetting('ads_label_text', $adsLabel);
+        setSetting('ads_html_code', $adsHtmlCode);
+
+        $_SESSION['flash_message'] = 'Ad placement controls updated successfully.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['update_fetch_settings'])) {
         $timeout = (int)($_POST['fetch_timeout_seconds'] ?? 12);
         $timeout = max(3, min(45, $timeout));
@@ -844,6 +891,17 @@ $seoDefaultOgImage = (string)getSetting('seo_default_og_image', '');
 $seoTwitterSite = (string)getSetting('seo_twitter_site', '');
 $seoImageAltSuffix = (string)getSetting('seo_image_alt_suffix', ' - car image');
 $seoImageTitleSuffix = (string)getSetting('seo_image_title_suffix', ' - photo');
+
+$adsEnabled = getSettingInt('ads_enabled', 0, 0, 1) === 1;
+$adsInjectionMode = (string)getSetting('ads_injection_mode', 'smart');
+if (!in_array($adsInjectionMode, ['smart', 'interval'], true)) {
+    $adsInjectionMode = 'smart';
+}
+$adsParagraphInterval = getSettingInt('ads_paragraph_interval', 4, 2, 10);
+$adsMaxUnits = getSettingInt('ads_max_units_per_article', 2, 1, 6);
+$adsMinWordsBeforeFirstInjection = getSettingInt('ads_min_words_before_first_injection', 180, 80, 600);
+$adsLabelText = (string)getSetting('ads_label_text', 'Sponsored');
+$adsHtmlCode = (string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>');
 $minWords = getSettingInt('min_words', 3000, 300, 12000);
 $urlCacheTtlSeconds = getSettingInt('url_cache_ttl_seconds', 900, 60, 86400);
 $workflowBatchSize = getSettingInt('workflow_batch_size', 8, 1, 50);
@@ -1279,6 +1337,52 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Manage global metadata for homepage, article title suffix, robots rules, and social sharing tags.</small>
+                </div>
+            </div>
+
+            <div class="card section-card mb-3" id="ads-settings">
+                <div class="card-body">
+                    <h5><i class="bi bi-badge-ad"></i> Smart Ads Manager</h5>
+                    <form method="post" class="row g-2 align-items-end">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="ads_enabled" name="ads_enabled" value="1" <?= $adsEnabled ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="ads_enabled">Enable ad injection in article pages</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Injection Strategy</label>
+                            <select name="ads_injection_mode" class="form-select">
+                                <option value="smart" <?= $adsInjectionMode === 'smart' ? 'selected' : '' ?>>AI Smart Placement (recommended)</option>
+                                <option value="interval" <?= $adsInjectionMode === 'interval' ? 'selected' : '' ?>>Fixed Paragraph Interval</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Max Ads / Article</label>
+                            <input type="number" name="ads_max_units_per_article" class="form-control" min="1" max="6" value="<?= (int)$adsMaxUnits ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Paragraph Interval</label>
+                            <input type="number" name="ads_paragraph_interval" class="form-control" min="2" max="10" value="<?= (int)$adsParagraphInterval ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Min Words before First Ad</label>
+                            <input type="number" name="ads_min_words_before_first_injection" class="form-control" min="80" max="600" value="<?= (int)$adsMinWordsBeforeFirstInjection ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Ad Label</label>
+                            <input type="text" name="ads_label_text" class="form-control" maxlength="40" value="<?= e($adsLabelText) ?>" placeholder="Sponsored">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Ad HTML / Script Code</label>
+                            <textarea name="ads_html_code" class="form-control" rows="5" placeholder="Paste AdSense or custom ad snippet"><?= e($adsHtmlCode) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button name="update_ads_settings" value="1" class="btn btn-outline-light w-100">Save Ads Controls</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary">Smart mode uses content-aware rules to place ads after substantial sections, reducing user annoyance.</small>
                 </div>
             </div>
 
