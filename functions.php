@@ -1523,7 +1523,11 @@ function generateArticle($title) {
     $content = "<h1>" . htmlspecialchars($title) . "</h1>\n";
     $content .= "<p class='text-muted'>Published " . date('F j, Y') . " • AutoCar Niche</p>\n";
     $coverImage = buildUniqueArticleImageUrl($title, $model);
-    $content .= "<img src='" . htmlspecialchars($coverImage, ENT_QUOTES, 'UTF-8') . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($title) . "'>\n";
+    $imageAltSuffix = trim((string)getSetting('seo_image_alt_suffix', ' - car image'));
+    $imageTitleSuffix = trim((string)getSetting('seo_image_title_suffix', ' - photo'));
+    $imageAlt = trim($title . ' ' . ltrim($imageAltSuffix, '- '));
+    $imageTitle = trim($title . ' ' . ltrim($imageTitleSuffix, '- '));
+    $content .= "<img src='" . htmlspecialchars($coverImage, ENT_QUOTES, 'UTF-8') . "' class='img-fluid rounded mb-4' alt='" . htmlspecialchars($imageAlt, ENT_QUOTES, 'UTF-8') . "' title='" . htmlspecialchars($imageTitle, ENT_QUOTES, 'UTF-8') . "' loading='eager' decoding='async' fetchpriority='high'>\n";
     $content .= "<p>" . getRandomIntro($title) . " This review follows an editorial structure designed to deliver deep analysis, clear comparisons, and practical buying guidance.</p>\n";
     $content .= "<p>This {$title} review is optimized to answer the top buyer questions around performance, reliability, pricing logic, and long-term ownership value.</p>\n";
     $content .= "<p><strong>Quick Take:</strong> The {$title} is a {$bodyType}-class product focused on balanced performance, everyday usability, and ownership predictability rather than one-dimensional headline metrics.</p>\n";

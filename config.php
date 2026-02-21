@@ -108,7 +108,15 @@ $defaults = [
     'auto_title_audiences' => "Smart Buyers\nFirst-Time Premium Buyers\nTech-Focused Drivers\nFamily Buyers",
     'auto_title_angles' => "Full Review and Buyer Guide\nLong-Term Ownership Analysis\nReal-World Efficiency Test\nDaily Driving Impression\nSmart Technology Deep Dive\nComparison and Value Breakdown\nReliability, Resale, and Total Cost Breakdown",
     'auto_title_templates' => "{year} {brand} {model} {modifier}: {angle} for {audience}\n{year} {brand} {model} {modifier} — {angle} ({audience})\n{year} {brand} {model}: {modifier} + {angle}",
-    'auto_title_fixed_titles' => ''
+    'auto_title_fixed_titles' => '',
+    'seo_home_title' => SITE_TITLE,
+    'seo_home_description' => 'Automotive reviews, guides, and practical car ownership tips.',
+    'seo_article_title_suffix' => SITE_TITLE,
+    'seo_default_robots' => 'index,follow',
+    'seo_default_og_image' => '',
+    'seo_twitter_site' => '',
+    'seo_image_alt_suffix' => ' - car image',
+    'seo_image_title_suffix' => ' - photo'
 ];
 foreach ($defaults as $k => $v) {
     $pdo->prepare("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)")->execute([$k, $v]);
