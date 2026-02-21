@@ -5,8 +5,8 @@ publishAutoArticleBySchedule();
 $pdo = db_connect();
 $slug = trim($_GET['slug'] ?? '');
 $baseUrl = getSiteBaseUrl();
-$pageTitle = SITE_TITLE . ' - Latest Car Articles';
-$pageDescription = 'Explore in-depth automotive reviews, buying guides, and practical car ownership tips with regularly updated content.';
+$pageTitle = SITE_TITLE;
+$pageDescription = 'Automotive reviews, guides, and practical car ownership tips.';
 $canonicalUrl = $baseUrl . '/index.php';
 $openGraphType = 'website';
 $openGraphImage = null;
@@ -104,7 +104,7 @@ if ($slug === '') {
         $listingStructuredData = [
             '@context' => 'https://schema.org',
             '@type' => 'ItemList',
-            'name' => 'Latest Automotive Articles',
+            'name' => 'Automotive Articles',
             'itemListElement' => [],
         ];
         foreach ($latestForSchema as $position => $item) {
