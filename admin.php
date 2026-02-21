@@ -857,6 +857,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
     <style>
         body {
             background: #10131a;
+            color: #ff4d4f;
+        }
+        .text-secondary,
+        .text-light-emphasis,
+        .text-muted,
+        small {
+            color: #ff7b7d !important;
         }
         .section-card {
             background: #232a34;
@@ -911,17 +918,33 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             top: 1rem;
         }
         .dashboard-sidebar .nav-link {
-            color: #dbe7ff;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(148, 163, 184, 0.08);
+            color: #ffb4b5;
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            background: rgba(220, 38, 38, 0.08);
             margin-bottom: 0.5rem;
             border-radius: 0.6rem;
             transition: all 0.2s ease;
         }
-        .dashboard-sidebar .nav-link:hover {
-            color: #fff;
-            background: rgba(59, 130, 246, 0.22);
-            border-color: rgba(96, 165, 250, 0.35);
+        .dashboard-sidebar .nav-link:hover,
+        .dashboard-sidebar .nav-link.active {
+            color: #fff5f5;
+            background: rgba(220, 38, 38, 0.25);
+            border-color: rgba(252, 165, 165, 0.6);
+        }
+        .panel-nav-btn {
+            text-align: left;
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            color: #ffb4b5;
+            background: rgba(220, 38, 38, 0.08);
+        }
+        .panel-nav-btn:hover,
+        .panel-nav-btn.active {
+            color: #fff5f5;
+            border-color: rgba(252, 165, 165, 0.6);
+            background: rgba(220, 38, 38, 0.25);
+        }
+        #active-control-panel .section-card {
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -1051,19 +1074,21 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <h5 class="mb-3"><i class="bi bi-layout-sidebar"></i> Dashboard Sections</h5>
                     <nav class="nav flex-column">
                         <a class="nav-link" href="#overview-stats"><i class="bi bi-grid me-1"></i> Overview</a>
-                        <a class="nav-link" href="#publishing-settings"><i class="bi bi-sliders me-1"></i> Publishing Controls</a>
-                        <a class="nav-link" href="#sources-management"><i class="bi bi-collection me-1"></i> Sources & Queue</a>
+                        <a class="nav-link" href="#" data-panel-title="Daily Publishing Limit"><i class="bi bi-sliders me-1"></i> Publishing Controls</a>
+                        <a class="nav-link" href="#" data-panel-title="Add Titles Manually"><i class="bi bi-collection me-1"></i> Sources & Queue</a>
                         <a class="nav-link" href="#content-data"><i class="bi bi-table me-1"></i> Content Data</a>
                     </nav>
                     <hr class="border-secondary-subtle my-3">
-                    <small class="text-secondary d-block">Use this side bar to jump between dashboard sections quickly.</small>
+                    <h6 class="mb-2"><i class="bi bi-ui-checks-grid"></i> Control Buttons</h6>
+                    <small class="text-secondary d-block mb-3">اختر القسم من نفس القائمة اليسرى ليظهر على اليمين.</small>
+                    <div class="d-grid gap-2" id="control-panel-nav"></div>
                 </div>
             </div>
         </aside>
 
         <div class="col-lg-9">
             <div class="row g-4">
-        <div class="col-xl-4">
+        <div class="col-xl-4 d-none" id="control-cards-source">
             <div class="card section-card mb-3" id="publishing-settings">
                 <div class="card-body">
                     <h5><i class="bi bi-sliders"></i> Daily Publishing Limit</h5>
@@ -1323,7 +1348,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
 
-        <div class="col-xl-8" id="content-data">
+        <div class="col-xl-12" id="content-data">
             <form method="post" class="mb-3">
                 <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                 <button name="run_content_workflow" value="1" class="btn btn-primary btn-lg w-100">
@@ -1334,6 +1359,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <a href="admin.php?export=articles_json" class="btn btn-outline-light w-100"><i class="bi bi-filetype-json"></i> Export JSON</a>
                 <a href="admin.php?export=articles_csv" class="btn btn-outline-light w-100"><i class="bi bi-filetype-csv"></i> Export CSV</a>
             </div>
+
+            <div id="active-control-panel"></div>
 
             <ul class="nav nav-pills admin-tabs gap-2 mb-3" id="adminDataTabs" role="tablist">
                 <li class="nav-item" role="presentation">
@@ -1616,6 +1643,59 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
 </div>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const sourceCards = Array.from(document.querySelectorAll('#control-cards-source .section-card'));
+        const panelNav = document.getElementById('control-panel-nav');
+        const activePanel = document.getElementById('active-control-panel');
+
+        function renderPanel(index) {
+            if (!activePanel || !sourceCards[index]) return;
+            activePanel.innerHTML = '';
+            activePanel.appendChild(sourceCards[index]);
+
+            panelNav.querySelectorAll('button').forEach(function (btn, btnIndex) {
+                btn.classList.toggle('active', btnIndex === index);
+            });
+
+            document.querySelectorAll('.dashboard-sidebar [data-panel-title]').forEach(function (link) {
+                const targetTitle = (link.getAttribute('data-panel-title') || '').trim();
+                const currentHeading = sourceCards[index].querySelector('h5');
+                const currentTitle = currentHeading ? currentHeading.innerText.trim() : '';
+                link.classList.toggle('active', targetTitle !== '' && targetTitle === currentTitle);
+            });
+        }
+
+        if (panelNav && activePanel && sourceCards.length) {
+            sourceCards.forEach(function (card, index) {
+                const titleEl = card.querySelector('h5');
+                const label = titleEl ? titleEl.innerText.trim() : 'Section ' + (index + 1);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn panel-nav-btn';
+                btn.textContent = label;
+                btn.addEventListener('click', function () {
+                    renderPanel(index);
+                });
+                panelNav.appendChild(btn);
+            });
+
+            document.querySelectorAll('.dashboard-sidebar [data-panel-title]').forEach(function (link) {
+                link.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    const targetTitle = (link.getAttribute('data-panel-title') || '').trim();
+                    const idx = sourceCards.findIndex(function (card) {
+                        const heading = card.querySelector('h5');
+                        return heading && heading.innerText.trim() === targetTitle;
+                    });
+                    if (idx >= 0) {
+                        renderPanel(idx);
+                        document.getElementById('content-data')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+            });
+
+            renderPanel(0);
+        }
+
         const selectAll = document.getElementById('select-all-articles');
         if (!selectAll) return;
         selectAll.addEventListener('change', function () {
