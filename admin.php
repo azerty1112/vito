@@ -12,9 +12,13 @@ $isLocked = $_SESSION['login_lock_until'] > $now;
 $remainingLockSeconds = max(0, $_SESSION['login_lock_until'] - $now);
 
 if (!isset($_SESSION['logged']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pass'])) {
+    $submittedPassword = trim((string)($_POST['pass'] ?? ''));
+
     if ($isLocked) {
         $_SESSION['login_error'] = 'Too many attempts. Try again in ' . $remainingLockSeconds . ' seconds.';
-    } elseif (verifyAdminPassword($_POST['pass'])) {
+    } elseif ($submittedPassword === '') {
+        $_SESSION['login_error'] = 'Password is required.';
+    } elseif (verifyAdminPassword($submittedPassword)) {
         session_regenerate_id(true);
         $_SESSION['logged'] = true;
         $_SESSION['login_attempts'] = 0;
@@ -72,7 +76,7 @@ if (!isset($_SESSION['logged'])) {
 
             <form method="post" autocomplete="off">
                 <label for="pass" class="form-label">Password</label>
-                <input id="pass" type="password" name="pass" class="form-control form-control-lg" placeholder="Enter admin password" required autofocus>
+                <input id="pass" type="password" name="pass" class="form-control form-control-lg" placeholder="Enter admin password" autocomplete="current-password" required autofocus>
                 <button class="btn btn-primary w-100 mt-3">Login</button>
             </form>
 
@@ -109,9 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['update_admin_password'])) {
-        $currentPassword = (string)($_POST['current_password'] ?? '');
-        $newPassword = (string)($_POST['new_password'] ?? '');
-        $confirmPassword = (string)($_POST['confirm_password'] ?? '');
+        $currentPassword = trim((string)($_POST['current_password'] ?? ''));
+        $newPassword = trim((string)($_POST['new_password'] ?? ''));
+        $confirmPassword = trim((string)($_POST['confirm_password'] ?? ''));
 
         if (!verifyAdminPassword($currentPassword)) {
             $_SESSION['flash_message'] = 'Current password is incorrect.';
@@ -1119,13 +1123,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <form method="post" class="row g-2">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-12">
-                            <input type="password" name="current_password" class="form-control" placeholder="Current password" required>
+                            <input type="password" name="current_password" class="form-control" placeholder="Current password" autocomplete="current-password" required>
                         </div>
                         <div class="col-12">
-                            <input type="password" name="new_password" class="form-control" placeholder="New password (min 8 chars)" minlength="8" required>
+                            <input type="password" name="new_password" class="form-control" placeholder="New password (min 8 chars)" minlength="8" autocomplete="new-password" required>
                         </div>
                         <div class="col-12">
-                            <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" minlength="8" required>
+                            <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" minlength="8" autocomplete="new-password" required>
                         </div>
                         <div class="col-12">
                             <button name="update_admin_password" value="1" class="btn btn-outline-light w-100">Save New Password</button>
