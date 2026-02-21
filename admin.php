@@ -108,6 +108,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['update_admin_password'])) {
+        $currentPassword = (string)($_POST['current_password'] ?? '');
+        $newPassword = (string)($_POST['new_password'] ?? '');
+        $confirmPassword = (string)($_POST['confirm_password'] ?? '');
+
+        if (!verifyAdminPassword($currentPassword)) {
+            $_SESSION['flash_message'] = 'Current password is incorrect.';
+            $_SESSION['flash_type'] = 'danger';
+        } elseif (strlen($newPassword) < 8) {
+            $_SESSION['flash_message'] = 'New password must be at least 8 characters.';
+            $_SESSION['flash_type'] = 'danger';
+        } elseif ($newPassword !== $confirmPassword) {
+            $_SESSION['flash_message'] = 'New password and confirmation do not match.';
+            $_SESSION['flash_type'] = 'danger';
+        } else {
+            setSetting('admin_password_hash', password_hash($newPassword, PASSWORD_DEFAULT));
+            $_SESSION['flash_message'] = 'Admin password updated successfully.';
+            $_SESSION['flash_type'] = 'success';
+        }
+
+        header('Location: admin.php');
+        exit;
+    }
+
     if (isset($_POST['update_daily_limit'])) {
         $newLimit = (int)($_POST['daily_limit'] ?? 5);
         $newLimit = max(1, min(200, $newLimit));
@@ -907,8 +931,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         .admin-tabs .nav-link.active {
             color: #fff;
-            background: rgba(59, 130, 246, 0.28);
-            border-color: rgba(96, 165, 250, 0.4);
+            background: rgba(220, 38, 38, 0.25);
+            border-color: rgba(252, 165, 165, 0.6);
         }
         .admin-tabs .nav-link:hover {
             color: #fff;
@@ -945,6 +969,17 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         #active-control-panel .section-card {
             margin-bottom: 1rem;
+        }
+        .btn-primary,
+        .btn-outline-info,
+        .bg-info,
+        .text-bg-primary {
+            background-color: #dc2626 !important;
+            border-color: #f87171 !important;
+            color: #fff !important;
+        }
+        .progress-bar.bg-info {
+            background-color: #ef4444 !important;
         }
     </style>
 </head>
@@ -1072,16 +1107,30 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="card section-card dashboard-sidebar">
                 <div class="card-body">
                     <h5 class="mb-3"><i class="bi bi-layout-sidebar"></i> Dashboard Sections</h5>
-                    <nav class="nav flex-column">
-                        <a class="nav-link" href="#overview-stats"><i class="bi bi-grid me-1"></i> Overview</a>
-                        <a class="nav-link" href="#" data-panel-title="Daily Publishing Limit"><i class="bi bi-sliders me-1"></i> Publishing Controls</a>
-                        <a class="nav-link" href="#" data-panel-title="Add Titles Manually"><i class="bi bi-collection me-1"></i> Sources & Queue</a>
-                        <a class="nav-link" href="#content-data"><i class="bi bi-table me-1"></i> Content Data</a>
-                    </nav>
                     <hr class="border-secondary-subtle my-3">
                     <h6 class="mb-2"><i class="bi bi-ui-checks-grid"></i> Control Buttons</h6>
-                    <small class="text-secondary d-block mb-3">اختر القسم من نفس القائمة اليسرى ليظهر على اليمين.</small>
                     <div class="d-grid gap-2" id="control-panel-nav"></div>
+                </div>
+            </div>
+
+            <div class="card section-card mt-3">
+                <div class="card-body">
+                    <h6 class="mb-3"><i class="bi bi-key"></i> Change Admin Password</h6>
+                    <form method="post" class="row g-2">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <input type="password" name="current_password" class="form-control" placeholder="Current password" required>
+                        </div>
+                        <div class="col-12">
+                            <input type="password" name="new_password" class="form-control" placeholder="New password (min 8 chars)" minlength="8" required>
+                        </div>
+                        <div class="col-12">
+                            <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password" minlength="8" required>
+                        </div>
+                        <div class="col-12">
+                            <button name="update_admin_password" value="1" class="btn btn-outline-light w-100">Save New Password</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </aside>
@@ -1656,12 +1705,6 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 btn.classList.toggle('active', btnIndex === index);
             });
 
-            document.querySelectorAll('.dashboard-sidebar [data-panel-title]').forEach(function (link) {
-                const targetTitle = (link.getAttribute('data-panel-title') || '').trim();
-                const currentHeading = sourceCards[index].querySelector('h5');
-                const currentTitle = currentHeading ? currentHeading.innerText.trim() : '';
-                link.classList.toggle('active', targetTitle !== '' && targetTitle === currentTitle);
-            });
         }
 
         if (panelNav && activePanel && sourceCards.length) {
@@ -1676,21 +1719,6 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     renderPanel(index);
                 });
                 panelNav.appendChild(btn);
-            });
-
-            document.querySelectorAll('.dashboard-sidebar [data-panel-title]').forEach(function (link) {
-                link.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    const targetTitle = (link.getAttribute('data-panel-title') || '').trim();
-                    const idx = sourceCards.findIndex(function (card) {
-                        const heading = card.querySelector('h5');
-                        return heading && heading.innerText.trim() === targetTitle;
-                    });
-                    if (idx >= 0) {
-                        renderPanel(idx);
-                        document.getElementById('content-data')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                });
             });
 
             renderPanel(0);
