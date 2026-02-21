@@ -1121,7 +1121,12 @@ function verifyAdminPassword($password) {
         return true;
     }
 
-    return password_verify($password, PASSWORD_HASH);
+    $storedHash = getSetting('admin_password_hash', PASSWORD_HASH);
+    if (!is_string($storedHash) || trim($storedHash) === '') {
+        $storedHash = PASSWORD_HASH;
+    }
+
+    return password_verify($password, $storedHash);
 }
 
 function getRandomIntro($title) {
