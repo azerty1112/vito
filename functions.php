@@ -16,6 +16,19 @@ function e($text) {
     return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
 }
 
+function getSiteBaseUrl() {
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host === '') {
+        return '';
+    }
+
+    $https = strtolower((string)($_SERVER['HTTPS'] ?? ''));
+    $forwardedProto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    $scheme = ($https === 'on' || $https === '1' || $forwardedProto === 'https') ? 'https' : 'http';
+
+    return $scheme . '://' . $host;
+}
+
 function getVisitorFingerprint() {
     $ip = trim((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown-ip'));
     $agent = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'unknown-agent'));
@@ -771,34 +784,126 @@ function buildFaqSection($title, $isEV) {
     return $html;
 }
 
+
+function getAutoTitleDefaultSettings() {
+    return [
+        'auto_title_mode' => 'template',
+        'auto_title_min_year_offset' => '0',
+        'auto_title_max_year_offset' => '1',
+        'auto_title_brands' => "Toyota
+BMW
+Mercedes
+Audi
+Porsche
+Tesla
+Hyundai
+Kia
+Ford
+Nissan
+Volvo
+Lexus",
+        'auto_title_models' => "SUV
+Sedan
+Coupe
+EV Crossover
+Hybrid SUV
+Performance Hatchback
+Electric Sedan
+Luxury Wagon
+Premium Crossover",
+        'auto_title_modifiers' => "Review
+Specs
+Price
+Comparison
+Buying Guide
+Ownership Cost",
+        'auto_title_audiences' => "Smart Buyers
+First-Time Premium Buyers
+Tech-Focused Drivers
+Family Buyers",
+        'auto_title_angles' => "Full Review and Buyer Guide
+Long-Term Ownership Analysis
+Real-World Efficiency Test
+Daily Driving Impression
+Smart Technology Deep Dive
+Comparison and Value Breakdown
+Reliability, Resale, and Total Cost Breakdown",
+        'auto_title_templates' => "{year} {brand} {model} {modifier}: {angle} for {audience}
+{year} {brand} {model} {modifier} — {angle} ({audience})
+{year} {brand} {model}: {modifier} + {angle}",
+        'auto_title_fixed_titles' => '',
+    ];
+}
+
+function getAutoTitleSetting($key) {
+    $defaults = getAutoTitleDefaultSettings();
+    $fallback = $defaults[$key] ?? '';
+    return (string)getSetting($key, $fallback);
+}
+
+function parseSettingList($key, $fallback) {
+    $raw = (string)getSetting($key, $fallback);
+    $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+    $clean = [];
+
+    foreach ($lines as $line) {
+        $value = trim((string)$line);
+        if ($value !== '') {
+            $clean[] = $value;
+        }
+    }
+
+    return $clean;
+}
+
+function pickRandomFromList(array $items, $fallback = '') {
+    if (!$items) {
+        return (string)$fallback;
+    }
+
+    return (string)$items[array_rand($items)];
+}
+
 function generateAutoTitle() {
-    $year = (int)date('Y') + rand(0, 1);
-    $brands = ['Toyota', 'BMW', 'Mercedes', 'Audi', 'Porsche', 'Tesla', 'Hyundai', 'Kia', 'Ford', 'Nissan', 'Volvo', 'Lexus'];
-    $models = ['SUV', 'Sedan', 'Coupe', 'EV Crossover', 'Hybrid SUV', 'Performance Hatchback', 'Electric Sedan', 'Luxury Wagon', 'Premium Crossover'];
-    $seoModifiers = ['Review', 'Specs', 'Price', 'Comparison', 'Buying Guide', 'Ownership Cost'];
-    $audience = ['Smart Buyers', 'First-Time Premium Buyers', 'Tech-Focused Drivers', 'Family Buyers'];
-    $angles = [
-        'Full Review and Buyer Guide',
-        'Long-Term Ownership Analysis',
-        'Real-World Efficiency Test',
-        'Daily Driving Impression',
-        'Smart Technology Deep Dive',
-        'Comparison and Value Breakdown',
-        'Reliability, Resale, and Total Cost Breakdown'
-    ];
-    $brand = $brands[array_rand($brands)];
-    $model = $models[array_rand($models)];
-    $modifier = $seoModifiers[array_rand($seoModifiers)];
-    $angle = $angles[array_rand($angles)];
-    $targetAudience = $audience[array_rand($audience)];
+    $mode = trim(getAutoTitleSetting('auto_title_mode'));
 
-    $templates = [
-        "{$year} {$brand} {$model} {$modifier}: {$angle} for {$targetAudience}",
-        "{$year} {$brand} {$model} {$modifier} — {$angle} ({$targetAudience})",
-        "{$year} {$brand} {$model}: {$modifier} + {$angle}",
+    if ($mode === 'list') {
+        $fixedTitles = parseSettingList('auto_title_fixed_titles', '');
+        if ($fixedTitles) {
+            return pickRandomFromList($fixedTitles);
+        }
+        $mode = 'template';
+    }
+
+    $minOffset = getSettingInt('auto_title_min_year_offset', 0, -1, 2);
+    $maxOffset = getSettingInt('auto_title_max_year_offset', 1, -1, 3);
+    if ($maxOffset < $minOffset) {
+        [$minOffset, $maxOffset] = [$maxOffset, $minOffset];
+    }
+
+    $year = (int)date('Y') + rand($minOffset, $maxOffset);
+    $brand = pickRandomFromList(parseSettingList('auto_title_brands', getAutoTitleSetting('auto_title_brands')), 'Toyota');
+    $model = pickRandomFromList(parseSettingList('auto_title_models', getAutoTitleSetting('auto_title_models')), 'SUV');
+    $modifier = pickRandomFromList(parseSettingList('auto_title_modifiers', getAutoTitleSetting('auto_title_modifiers')), 'Review');
+    $audience = pickRandomFromList(parseSettingList('auto_title_audiences', getAutoTitleSetting('auto_title_audiences')), 'Smart Buyers');
+    $angle = pickRandomFromList(parseSettingList('auto_title_angles', getAutoTitleSetting('auto_title_angles')), 'Full Review and Buyer Guide');
+
+    $templates = parseSettingList('auto_title_templates', getAutoTitleSetting('auto_title_templates'));
+    if (!$templates) {
+        $templates = ['{year} {brand} {model} {modifier}: {angle} for {audience}'];
+    }
+
+    $template = pickRandomFromList($templates, '{year} {brand} {model} {modifier}: {angle} for {audience}');
+    $replacements = [
+        '{year}' => (string)$year,
+        '{brand}' => $brand,
+        '{model}' => $model,
+        '{modifier}' => $modifier,
+        '{audience}' => $audience,
+        '{angle}' => $angle,
     ];
 
-    return $templates[array_rand($templates)];
+    return trim(strtr($template, $replacements));
 }
 
 function generateUniqueAutoTitle($maxAttempts = 12) {
