@@ -98,6 +98,7 @@ $defaults = [
     'queue_retry_delay_seconds' => '60',
     'queue_max_attempts' => '3',
     'queue_source_cooldown_seconds' => '180',
+    'visit_excluded_ips' => '',
     'auto_title_mode' => 'template',
     'auto_title_min_year_offset' => '0',
     'auto_title_max_year_offset' => '1',

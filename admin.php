@@ -193,12 +193,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $intervalMinutes = (int)($_POST['auto_publish_interval_minutes'] ?? 180);
         $intervalMinutes = max(1, min(1440, $intervalMinutes));
 
+        $visitExcludedIps = trim((string)($_POST['visit_excluded_ips'] ?? ''));
+        if (mb_strlen($visitExcludedIps) > 4000) {
+            $visitExcludedIps = mb_substr($visitExcludedIps, 0, 4000);
+        }
+        $visitExcludedIps = normalizeExcludedIpRules($visitExcludedIps);
+
         setSetting('min_words', (string)$minWords);
         setSetting('url_cache_ttl_seconds', (string)$cacheTtl);
         setSetting('workflow_batch_size', (string)$batchSize);
         setSetting('queue_retry_delay_seconds', (string)$queueRetryDelay);
         setSetting('queue_max_attempts', (string)$queueMaxAttempts);
         setSetting('auto_publish_interval_minutes', (string)$intervalMinutes);
+        setSetting('visit_excluded_ips', $visitExcludedIps);
 
         // Keep minute + second based scheduler settings synchronized.
         setSetting('auto_publish_interval_seconds', (string)($intervalMinutes * 60));
@@ -786,6 +793,8 @@ $fetchRetryAttempts = getSettingInt('fetch_retry_attempts', 3, 1, 5);
 $fetchRetryBackoffMs = getSettingInt('fetch_retry_backoff_ms', 350, 100, 3000);
 $queueSourceCooldownSeconds = getSettingInt('queue_source_cooldown_seconds', 180, 30, 7200);
 $fetchUserAgent = (string)getSetting('fetch_user_agent', 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)');
+$visitExcludedIps = (string)getSetting('visit_excluded_ips', '');
+$detectedVisitorIp = getVisitorIpAddress();
 $selectedWorkflow = getSelectedContentWorkflow();
 $workflowSummary = getContentWorkflowSummary();
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
@@ -1223,6 +1232,15 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <div class="col-6">
                             <label class="form-label">Auto Publish Interval (minutes)</label>
                             <input type="number" name="auto_publish_interval_minutes" class="form-control" min="1" max="1440" value="<?= (int)$autoPublishIntervalMinutes ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Exclude IPs From Visit Analytics</label>
+                            <textarea name="visit_excluded_ips" class="form-control" rows="3" placeholder="127.0.0.1
+203.0.113.4"><?= e($visitExcludedIps) ?></textarea>
+                            <small class="text-secondary">One IP per line or separated by commas/spaces. Supports exact IPs and IPv4 CIDR (example: 203.0.113.0/24).</small>
+                            <?php if ($detectedVisitorIp !== ''): ?>
+                                <small class="d-block text-info mt-1">Detected current request IP: <code><?= e($detectedVisitorIp) ?></code></small>
+                            <?php endif; ?>
                         </div>
                         <div class="col-12">
                             <button name="update_pipeline_settings" value="1" class="btn btn-outline-info w-100">Update Pipeline Config</button>
