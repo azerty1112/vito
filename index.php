@@ -4,6 +4,7 @@ publishAutoArticleBySchedule();
 
 $pdo = db_connect();
 $slug = trim($_GET['slug'] ?? '');
+$staticPage = trim((string)($_GET['doc'] ?? ''));
 $baseUrl = getSiteBaseUrl();
 $pageTitle = (string)getSetting('seo_home_title', SITE_TITLE);
 $pageDescription = (string)getSetting('seo_home_description', 'Automotive reviews, guides, and practical car ownership tips.');
@@ -13,6 +14,55 @@ $openGraphImage = null;
 $articleStructuredData = null;
 $breadcrumbStructuredData = null;
 $listingStructuredData = null;
+$staticPages = [
+    'about' => [
+        'title' => 'About Us',
+        'description' => 'Learn more about our automotive editorial mission, publishing standards, and audience-first approach.',
+        'content' => [
+            'We publish practical automotive content focused on real ownership questions: maintenance, buying, safety, and long-term value.',
+            'Our editorial workflow combines automated research with final quality checks for readability, originality, and user usefulness.',
+            'We prioritize clear language, transparent labeling, and content that helps readers make better car decisions.',
+        ],
+    ],
+    'contact' => [
+        'title' => 'Contact Us',
+        'description' => 'Need support, want to report an issue, or discuss collaboration? Reach our editorial and support team.',
+        'content' => [
+            'For support and editorial requests, please email: contact@example.com',
+            'For ad and business inquiries, please email: partnerships@example.com',
+            'We review all messages and aim to reply within 2 business days.',
+        ],
+    ],
+    'privacy' => [
+        'title' => 'Privacy Policy',
+        'description' => 'Read how we collect, use, and protect visitor data, cookies, and analytics information.',
+        'content' => [
+            'We may use analytics and advertising technologies (such as cookies and measurement scripts) to understand traffic and improve user experience.',
+            'We do not intentionally collect sensitive personal information through public pages. If you contact us directly, we only use your information to respond.',
+            'Third-party services (including ad providers) may process data according to their own privacy policies. You can disable cookies from your browser settings.',
+        ],
+    ],
+    'terms' => [
+        'title' => 'Terms of Use',
+        'description' => 'Website terms covering acceptable use, intellectual property, disclaimers, and content usage.',
+        'content' => [
+            'By using this website, you agree to use the content for lawful and personal informational purposes only.',
+            'All articles are provided for general information and do not replace professional legal, financial, or mechanical advice.',
+            'We may update content and site policies at any time to maintain quality, compliance, and platform requirements.',
+        ],
+    ],
+];
+
+if ($staticPage === '') {
+    $legacyStaticPage = trim((string)($_GET['page'] ?? ''));
+    if ($legacyStaticPage !== '' && !ctype_digit($legacyStaticPage) && isset($staticPages[$legacyStaticPage])) {
+        $staticPage = $legacyStaticPage;
+    }
+}
+
+if (!isset($staticPages[$staticPage])) {
+    $staticPage = '';
+}
 if ($pageDescription === '') {
     $pageDescription = 'Automotive reviews, guides, and practical car ownership tips.';
 }
@@ -70,6 +120,16 @@ $isFilteredListing = $slug === '' && (
 );
 if ($isFilteredListing) {
     $robotsDirective = 'noindex,follow';
+}
+
+if ($staticPage !== '') {
+    $pageTitle = $staticPages[$staticPage]['title'] . ' | ' . SITE_TITLE;
+    $pageDescription = $staticPages[$staticPage]['description'];
+    $canonicalUrl = $baseUrl . '/index.php?doc=' . rawurlencode($staticPage);
+    $openGraphType = 'website';
+    if ($defaultSocialImage !== '') {
+        $openGraphImage = $defaultSocialImage;
+    }
 }
 
 if ($slug !== '') {
@@ -149,7 +209,7 @@ if ($slug === '' && $openGraphImage === null && $defaultSocialImage !== '') {
     $openGraphImage = $defaultSocialImage;
 }
 
-if ($slug === '') {
+if ($slug === '' && $staticPage === '') {
     $latestForSchema = $pdo->query("SELECT title, slug FROM articles ORDER BY id DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
     if ($latestForSchema) {
         $listingStructuredData = [
@@ -603,6 +663,36 @@ if ($slug === '') {
             margin-top: 2.2rem;
         }
 
+        .policy-card {
+            border-radius: 1rem;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+            padding: 1.4rem;
+        }
+
+        .policy-card p {
+            color: #334155;
+            line-height: 1.8;
+        }
+
+        .footer-links {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 0.4rem;
+        }
+
+        .footer-links a {
+            color: #475569;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer-links a:hover {
+            color: #c2410c;
+        }
+
         .list-group-item {
             border: 0;
             border-bottom: 1px solid rgba(148, 163, 184, 0.2);
@@ -633,9 +723,15 @@ if ($slug === '') {
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container flex-wrap gap-2 py-2">
         <a class="navbar-brand" href="index.php"><?= e(SITE_TITLE) ?></a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="index.php?doc=about" class="btn btn-sm btn-outline-light">About</a>
+            <a href="index.php?doc=privacy" class="btn btn-sm btn-outline-light">Privacy</a>
+            <a href="index.php?doc=contact" class="btn btn-sm btn-outline-light">Contact</a>
+        </div>
     </div>
 </nav>
 
+<?php if ($staticPage === ''): ?>
 <section class="toolbar-strip">
     <div class="container content-shell">
         <form class="toolbar-form" method="get" action="index.php">
@@ -672,6 +768,7 @@ if ($slug === '') {
         </form>
     </div>
 </section>
+<?php endif; ?>
 
 <?php
 $search = trim($_GET['q'] ?? '');
@@ -719,7 +816,19 @@ $baseQuery['per_page'] = $perPage;
 ?>
 
 <div class="container content-shell py-5">
-<?php if ($slug !== ''): ?>
+<?php if ($staticPage !== ''): ?>
+    <?php $selectedPage = $staticPages[$staticPage]; ?>
+    <?php recordPageVisit('page:' . $staticPage, 'Static Page: ' . $selectedPage['title']); ?>
+    <section class="policy-card">
+        <h1 class="h3 mb-3"><?= e($selectedPage['title']) ?></h1>
+        <?php foreach ($selectedPage['content'] as $block): ?>
+            <p><?= e($block) ?></p>
+        <?php endforeach; ?>
+        <?php if ($staticPage === 'privacy'): ?>
+            <p class="mb-0"><strong>Advertising notice:</strong> This site may display third-party advertisements. Sponsored placements are labeled where applicable.</p>
+        <?php endif; ?>
+    </section>
+<?php elseif ($slug !== ''): ?>
     <?php
     $stmt = $pdo->prepare("SELECT * FROM articles WHERE slug = ?");
     $stmt->execute([$slug]);
@@ -979,6 +1088,12 @@ $baseQuery['per_page'] = $perPage;
 
 <footer class="app-footer">
     Designed for car enthusiasts • <?= gmdate('Y') ?>
+    <div class="footer-links">
+        <a href="index.php?doc=about">About</a>
+        <a href="index.php?doc=privacy">Privacy Policy</a>
+        <a href="index.php?doc=terms">Terms</a>
+        <a href="index.php?doc=contact">Contact</a>
+    </div>
 </footer>
 </div>
 <?php if ($googleTagManagerId !== ''): ?>
