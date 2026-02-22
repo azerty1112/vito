@@ -155,6 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $twitterSite = trim((string)($_POST['seo_twitter_site'] ?? ''));
         $imageAltSuffix = trim((string)($_POST['seo_image_alt_suffix'] ?? ''));
         $imageTitleSuffix = trim((string)($_POST['seo_image_title_suffix'] ?? ''));
+        $seoAutoLinkRules = trim((string)($_POST['seo_auto_link_rules'] ?? ''));
+        $seoAutoLinkAutoInternal = isset($_POST['seo_auto_link_auto_internal']) ? 1 : 0;
+        $seoAutoLinkMaxPerArticle = (int)($_POST['seo_auto_link_max_per_article'] ?? 3);
 
         if (mb_strlen($homeTitle) > 120) {
             $homeTitle = mb_substr($homeTitle, 0, 120);
@@ -183,6 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (mb_strlen($imageTitleSuffix) > 80) {
             $imageTitleSuffix = mb_substr($imageTitleSuffix, 0, 80);
         }
+        if (mb_strlen($seoAutoLinkRules) > 12000) {
+            $seoAutoLinkRules = mb_substr($seoAutoLinkRules, 0, 12000);
+        }
+        $seoAutoLinkMaxPerArticle = max(1, min(10, $seoAutoLinkMaxPerArticle));
 
         setSetting('seo_home_title', $homeTitle);
         setSetting('seo_home_description', $homeDescription);
@@ -192,6 +199,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('seo_twitter_site', $twitterSite);
         setSetting('seo_image_alt_suffix', $imageAltSuffix);
         setSetting('seo_image_title_suffix', $imageTitleSuffix);
+        setSetting('seo_auto_link_rules', $seoAutoLinkRules);
+        setSetting('seo_auto_link_auto_internal', (string)$seoAutoLinkAutoInternal);
+        setSetting('seo_auto_link_max_per_article', (string)$seoAutoLinkMaxPerArticle);
 
         $_SESSION['flash_message'] = 'SEO settings updated successfully.';
         $_SESSION['flash_type'] = 'success';
@@ -952,6 +962,9 @@ $seoDefaultOgImage = (string)getSetting('seo_default_og_image', '');
 $seoTwitterSite = (string)getSetting('seo_twitter_site', '');
 $seoImageAltSuffix = (string)getSetting('seo_image_alt_suffix', ' - car image');
 $seoImageTitleSuffix = (string)getSetting('seo_image_title_suffix', ' - photo');
+$seoAutoLinkRules = (string)getSetting('seo_auto_link_rules', '');
+$seoAutoLinkAutoInternal = getSettingInt('seo_auto_link_auto_internal', 1, 0, 1) === 1;
+$seoAutoLinkMaxPerArticle = getSettingInt('seo_auto_link_max_per_article', 3, 1, 10);
 $googleAnalyticsId = (string)getSetting('google_analytics_id', '');
 $googleTagManagerId = (string)getSetting('google_tag_manager_id', '');
 $googleSiteVerification = (string)getSetting('google_site_verification', '');
@@ -1471,6 +1484,23 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <label class="form-label">Auto Image Title Suffix</label>
                             <input type="text" name="seo_image_title_suffix" class="form-control" maxlength="80" value="<?= e($seoImageTitleSuffix) ?>" placeholder="- photo">
                         </div>
+                        <div class="col-12">
+                            <label class="form-label">Auto Keyword Linking Rules</label>
+                            <textarea name="seo_auto_link_rules" class="form-control" rows="6" maxlength="12000" placeholder="car insurance|https://example.com/insurance-guide|newtab|nofollow&#10;Tesla|internal&#10;Model Y|slug:model-y-review&#10;BMW"><?= e($seoAutoLinkRules) ?></textarea>
+                            <small class="text-secondary">One rule per line: <code>keyword|destination|newtab|nofollow</code>. If destination is omitted (e.g. <code>BMW</code>), it resolves automatically to an internal related article. You can also use <code>internal</code> or <code>slug:article-slug</code>.</small>
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label">Automatic Internal Links per Article</label>
+                            <input type="number" name="seo_auto_link_max_per_article" class="form-control" min="1" max="10" value="<?= (int)$seoAutoLinkMaxPerArticle ?>">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label d-block">&nbsp;</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="seo_auto_link_auto_internal" name="seo_auto_link_auto_internal" value="1" <?= $seoAutoLinkAutoInternal ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="seo_auto_link_auto_internal">Auto internal</label>
+                            </div>
+                        </div>
+
                         <div class="col-12">
                             <button name="update_seo_settings" value="1" class="btn btn-outline-light w-100">Save SEO Settings</button>
                         </div>
