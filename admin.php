@@ -224,6 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $adsBlockedTitleKeywords = mb_substr($adsBlockedTitleKeywords, 0, 300);
         }
 
+        $adsBlockedCategories = trim((string)($_POST['ads_blocked_categories'] ?? ''));
+        if (mb_strlen($adsBlockedCategories) > 300) {
+            $adsBlockedCategories = mb_substr($adsBlockedCategories, 0, 300);
+        }
+
         $adsLabel = trim((string)($_POST['ads_label_text'] ?? 'Sponsored'));
         if ($adsLabel === '') {
             $adsLabel = 'Sponsored';
@@ -247,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('ads_min_words_before_first_injection', (string)$adsMinWords);
         setSetting('ads_min_article_words', (string)$adsMinArticleWords);
         setSetting('ads_blocked_title_keywords', $adsBlockedTitleKeywords);
+        setSetting('ads_blocked_categories', $adsBlockedCategories);
         setSetting('ads_label_text', $adsLabel);
         setSetting('ads_html_code', $adsHtmlCode);
 
@@ -912,6 +918,7 @@ $adsMaxUnits = getSettingInt('ads_max_units_per_article', 2, 1, 6);
 $adsMinWordsBeforeFirstInjection = getSettingInt('ads_min_words_before_first_injection', 180, 80, 600);
 $adsMinArticleWords = getSettingInt('ads_min_article_words', 420, 120, 3000);
 $adsBlockedTitleKeywords = (string)getSetting('ads_blocked_title_keywords', '');
+$adsBlockedCategories = (string)getSetting('ads_blocked_categories', '');
 $adsLabelText = (string)getSetting('ads_label_text', 'Sponsored');
 $adsHtmlCode = (string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>');
 $minWords = getSettingInt('min_words', 3000, 300, 12000);
@@ -1024,16 +1031,16 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         body {
-            --bs-heading-color: #ff4d4f;
+            --bs-heading-color: #f8fafc;
             background: radial-gradient(circle at 15% 10%, #1f6f54 0%, #14532d 45%, #0b2e1f 100%);
             background-attachment: fixed;
-            color: #ff4d4f;
+            color: #f8fafc;
         }
         .text-secondary,
         .text-light-emphasis,
         .text-muted,
         small {
-            color: #ff7b7d !important;
+            color: #cbd5e1 !important;
         }
         .section-card {
             background: #4a273b;
@@ -1086,6 +1093,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         .dashboard-sidebar {
             position: sticky;
             top: 1rem;
+            max-height: calc(100vh - 2rem);
+            overflow: hidden;
         }
         .dashboard-sidebar .nav-link {
             color: #ffb4b5;
@@ -1124,6 +1133,37 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         #control-panel-search::placeholder {
             color: #ffb4b5;
+        }
+
+        .panel-nav-toolbar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.65rem;
+        }
+        .panel-nav-toolbar .btn {
+            flex: 1;
+        }
+        #control-panel-nav {
+            max-height: calc(100vh - 17rem);
+            overflow-y: auto;
+            padding-right: 0.2rem;
+        }
+        .section-counter {
+            display: inline-block;
+            font-size: 0.75rem;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            border-radius: 999px;
+            padding: 0.2rem 0.55rem;
+            margin-bottom: 0.5rem;
+            color: #e2e8f0;
+        }
+        .panel-nav-empty {
+            border: 1px dashed rgba(248, 113, 113, 0.45);
+            border-radius: 0.6rem;
+            padding: 0.6rem;
+            color: #fecaca;
+            font-size: 0.82rem;
+            text-align: center;
         }
         #active-control-panel .section-card {
             margin-bottom: 1rem;
@@ -1302,8 +1342,14 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <hr class="border-secondary-subtle my-3">
                     <h6 class="mb-2"><i class="bi bi-ui-checks-grid"></i> Control Buttons</h6>
                     <input type="search" id="control-panel-search" class="form-control form-control-sm mb-2" placeholder="Search sections..." aria-label="Search dashboard sections">
+                    <span class="section-counter" id="section-counter">0/0 sections</span>
                     <small class="d-block text-secondary mb-2" id="active-section-label">Active: —</small>
+                    <div class="panel-nav-toolbar">
+                        <button type="button" class="btn btn-sm btn-outline-light" id="panel-prev-btn"><i class="bi bi-arrow-up"></i> Prev</button>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="panel-next-btn">Next <i class="bi bi-arrow-down"></i></button>
+                    </div>
                     <div class="d-grid gap-2" id="control-panel-nav"></div>
+                    <div class="panel-nav-empty d-none" id="control-panel-empty">No matching sections found.</div>
                 </div>
             </div>
 
@@ -1416,6 +1462,10 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <div class="col-12">
                             <label class="form-label">Block Ads for Title Keywords (comma separated)</label>
                             <input type="text" name="ads_blocked_title_keywords" class="form-control" maxlength="300" value="<?= e($adsBlockedTitleKeywords) ?>" placeholder="opinion, breaking, live blog">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Block Ads for Categories (comma separated)</label>
+                            <input type="text" name="ads_blocked_categories" class="form-control" maxlength="300" value="<?= e($adsBlockedCategories) ?>" placeholder="news, opinion, analysis">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Ad Label</label>
@@ -2011,7 +2061,45 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
         const panelSearch = document.getElementById('control-panel-search');
         const activeSectionLabel = document.getElementById('active-section-label');
         const activePanel = document.getElementById('active-control-panel');
+        const prevBtn = document.getElementById('panel-prev-btn');
+        const nextBtn = document.getElementById('panel-next-btn');
+        const emptyState = document.getElementById('control-panel-empty');
+        const sectionCounter = document.getElementById('section-counter');
         let currentIndex = 0;
+
+        function getVisibleButtons() {
+            return Array.from(panelNav.querySelectorAll('button')).filter(function (btn) {
+                return !btn.classList.contains('d-none');
+            });
+        }
+
+        function updateCounter() {
+            if (!sectionCounter || !panelNav) return;
+            const visibleButtons = getVisibleButtons();
+            const total = sourceCards.length;
+
+            if (!visibleButtons.length) {
+                sectionCounter.textContent = '0/' + total + ' sections';
+                return;
+            }
+
+            const activeVisiblePosition = visibleButtons.findIndex(function (btn) {
+                return Number(btn.dataset.index) === currentIndex;
+            });
+            const position = activeVisiblePosition >= 0 ? activeVisiblePosition + 1 : 1;
+            sectionCounter.textContent = position + '/' + visibleButtons.length + ' sections';
+        }
+
+        function updateNavState() {
+            if (!panelNav) return;
+            const visibleButtons = getVisibleButtons();
+            const hasAny = visibleButtons.length > 0;
+
+            if (prevBtn) prevBtn.disabled = !hasAny;
+            if (nextBtn) nextBtn.disabled = !hasAny;
+            if (emptyState) emptyState.classList.toggle('d-none', hasAny);
+            updateCounter();
+        }
 
         function renderPanel(index) {
             if (!activePanel || !sourceCards[index]) return;
@@ -2029,6 +2117,24 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 const label = titleEl ? titleEl.innerText.trim() : 'Section ' + (index + 1);
                 activeSectionLabel.textContent = 'Active: ' + label;
             }
+
+            updateCounter();
+        }
+
+        function navigateVisible(direction) {
+            const visibleButtons = getVisibleButtons();
+            if (!visibleButtons.length) return;
+
+            let currentVisibleIndex = visibleButtons.findIndex(function (btn) {
+                return Number(btn.dataset.index) === currentIndex;
+            });
+
+            if (currentVisibleIndex < 0) {
+                currentVisibleIndex = 0;
+            }
+
+            const nextVisibleIndex = (currentVisibleIndex + direction + visibleButtons.length) % visibleButtons.length;
+            renderPanel(Number(visibleButtons[nextVisibleIndex].dataset.index));
         }
 
         if (panelNav && activePanel && sourceCards.length) {
@@ -2061,15 +2167,50 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         }
                     });
 
-                    if (firstVisibleIndex !== null && buttons.every(function (btn) { return !btn.classList.contains('active') || btn.classList.contains('d-none'); })) {
+                    const activeBtn = panelNav.querySelector('button.active');
+                    const activeHidden = activeBtn && activeBtn.classList.contains('d-none');
+                    if (firstVisibleIndex !== null && activeHidden) {
                         renderPanel(firstVisibleIndex);
-                    } else {
-                        renderPanel(currentIndex);
                     }
+
+                    updateNavState();
                 });
             }
 
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function () {
+                    navigateVisible(-1);
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function () {
+                    navigateVisible(1);
+                });
+            }
+
+            document.addEventListener('keydown', function (event) {
+                if (!panelNav || !sourceCards.length) return;
+                if (event.key === '/' && document.activeElement !== panelSearch) {
+                    event.preventDefault();
+                    panelSearch && panelSearch.focus();
+                    return;
+                }
+
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes((document.activeElement && document.activeElement.tagName) || '')) {
+                    return;
+                }
+
+                if (event.key === ']') {
+                    event.preventDefault();
+                    navigateVisible(1);
+                } else if (event.key === '[') {
+                    event.preventDefault();
+                    navigateVisible(-1);
+                }
+            });
+
             renderPanel(0);
+            updateNavState();
         }
 
         const selectAll = document.getElementById('select-all-articles');
