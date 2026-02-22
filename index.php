@@ -4,7 +4,7 @@ publishAutoArticleBySchedule();
 
 $pdo = db_connect();
 $slug = trim($_GET['slug'] ?? '');
-$staticPage = trim((string)($_GET['page'] ?? ''));
+$staticPage = trim((string)($_GET['doc'] ?? ''));
 $baseUrl = getSiteBaseUrl();
 $pageTitle = (string)getSetting('seo_home_title', SITE_TITLE);
 $pageDescription = (string)getSetting('seo_home_description', 'Automotive reviews, guides, and practical car ownership tips.');
@@ -52,6 +52,13 @@ $staticPages = [
         ],
     ],
 ];
+
+if ($staticPage === '') {
+    $legacyStaticPage = trim((string)($_GET['page'] ?? ''));
+    if ($legacyStaticPage !== '' && !ctype_digit($legacyStaticPage) && isset($staticPages[$legacyStaticPage])) {
+        $staticPage = $legacyStaticPage;
+    }
+}
 
 if (!isset($staticPages[$staticPage])) {
     $staticPage = '';
@@ -118,7 +125,7 @@ if ($isFilteredListing) {
 if ($staticPage !== '') {
     $pageTitle = $staticPages[$staticPage]['title'] . ' | ' . SITE_TITLE;
     $pageDescription = $staticPages[$staticPage]['description'];
-    $canonicalUrl = $baseUrl . '/index.php?page=' . rawurlencode($staticPage);
+    $canonicalUrl = $baseUrl . '/index.php?doc=' . rawurlencode($staticPage);
     $openGraphType = 'website';
     if ($defaultSocialImage !== '') {
         $openGraphImage = $defaultSocialImage;
@@ -717,9 +724,9 @@ if ($slug === '' && $staticPage === '') {
     <div class="container flex-wrap gap-2 py-2">
         <a class="navbar-brand" href="index.php"><?= e(SITE_TITLE) ?></a>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="index.php?page=about" class="btn btn-sm btn-outline-light">About</a>
-            <a href="index.php?page=privacy" class="btn btn-sm btn-outline-light">Privacy</a>
-            <a href="index.php?page=contact" class="btn btn-sm btn-outline-light">Contact</a>
+            <a href="index.php?doc=about" class="btn btn-sm btn-outline-light">About</a>
+            <a href="index.php?doc=privacy" class="btn btn-sm btn-outline-light">Privacy</a>
+            <a href="index.php?doc=contact" class="btn btn-sm btn-outline-light">Contact</a>
         </div>
     </div>
 </nav>
@@ -1082,10 +1089,10 @@ $baseQuery['per_page'] = $perPage;
 <footer class="app-footer">
     Designed for car enthusiasts • <?= gmdate('Y') ?>
     <div class="footer-links">
-        <a href="index.php?page=about">About</a>
-        <a href="index.php?page=privacy">Privacy Policy</a>
-        <a href="index.php?page=terms">Terms</a>
-        <a href="index.php?page=contact">Contact</a>
+        <a href="index.php?doc=about">About</a>
+        <a href="index.php?doc=privacy">Privacy Policy</a>
+        <a href="index.php?doc=terms">Terms</a>
+        <a href="index.php?doc=contact">Contact</a>
     </div>
 </footer>
 </div>
