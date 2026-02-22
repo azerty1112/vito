@@ -346,8 +346,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['update_pipeline_settings'])) {
-        $minWords = (int)($_POST['min_words'] ?? 3000);
-        $minWords = max(300, min(12000, $minWords));
+        $minWordsFrom = (int)($_POST['min_words_from'] ?? 300);
+        $minWordsTo = (int)($_POST['min_words_to'] ?? 2111);
+        $minWordsFrom = max(0, min(2111, $minWordsFrom));
+        $minWordsTo = max(0, min(2111, $minWordsTo));
+        if ($minWordsTo < $minWordsFrom) {
+            [$minWordsFrom, $minWordsTo] = [$minWordsTo, $minWordsFrom];
+        }
+        $minWords = max(300, $minWordsTo);
 
         $cacheTtl = (int)($_POST['url_cache_ttl_seconds'] ?? 900);
         $cacheTtl = max(60, min(86400, $cacheTtl));
@@ -370,6 +376,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $visitExcludedIps = normalizeExcludedIpRules($visitExcludedIps);
 
+        setSetting('min_words_from', (string)$minWordsFrom);
+        setSetting('min_words_to', (string)$minWordsTo);
         setSetting('min_words', (string)$minWords);
         setSetting('url_cache_ttl_seconds', (string)$cacheTtl);
         setSetting('workflow_batch_size', (string)$batchSize);
@@ -391,10 +399,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['update_auto_scheduler'])) {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
-        $interval = (int)($_POST['auto_publish_interval_seconds'] ?? 10800);
-        $interval = max(1, $interval);
+        $intervalFrom = (int)($_POST['auto_publish_interval_seconds_from'] ?? 1);
+        $intervalTo = (int)($_POST['auto_publish_interval_seconds_to'] ?? 10800);
+        $intervalFrom = max(0, $intervalFrom);
+        $intervalTo = max(0, $intervalTo);
+        if ($intervalTo < $intervalFrom) {
+            [$intervalFrom, $intervalTo] = [$intervalTo, $intervalFrom];
+        }
+        $interval = max(1, $intervalTo);
 
         setSetting('auto_ai_enabled', (string)$enabled);
+        setSetting('auto_publish_interval_seconds_from', (string)$intervalFrom);
+        setSetting('auto_publish_interval_seconds_to', (string)$intervalTo);
         setSetting('auto_publish_interval_seconds', (string)$interval);
 
         $_SESSION['flash_message'] = 'Automatic AI publishing settings updated.';
@@ -989,7 +1005,12 @@ $adsBlockedTitleKeywords = (string)getSetting('ads_blocked_title_keywords', '');
 $adsBlockedCategories = (string)getSetting('ads_blocked_categories', '');
 $adsLabelText = (string)getSetting('ads_label_text', 'Sponsored');
 $adsHtmlCode = (string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>');
-$minWords = getSettingInt('min_words', 3000, 300, 12000);
+$minWordsFrom = getSettingInt('min_words_from', 300, 0, 2111);
+$minWordsTo = getSettingInt('min_words_to', getSettingInt('min_words', 2111, 300, 2111), 0, 2111);
+if ($minWordsTo < $minWordsFrom) {
+    [$minWordsFrom, $minWordsTo] = [$minWordsTo, $minWordsFrom];
+}
+$minWords = max(300, $minWordsTo);
 $urlCacheTtlSeconds = getSettingInt('url_cache_ttl_seconds', 900, 60, 86400);
 $workflowBatchSize = getSettingInt('workflow_batch_size', 8, 1, 50);
 $queueRetryDelaySeconds = getSettingInt('queue_retry_delay_seconds', 60, 5, 7200);
@@ -1005,6 +1026,11 @@ $selectedWorkflow = getSelectedContentWorkflow();
 $workflowSummary = getContentWorkflowSummary();
 $autoAiEnabled = getSettingInt('auto_ai_enabled', 1, 0, 1);
 $autoPublishInterval = getAutoPublishIntervalSeconds();
+$autoPublishIntervalFrom = getSettingInt('auto_publish_interval_seconds_from', 0, 0, PHP_INT_MAX);
+$autoPublishIntervalTo = getSettingInt('auto_publish_interval_seconds_to', $autoPublishInterval, 0, PHP_INT_MAX);
+if ($autoPublishIntervalTo < $autoPublishIntervalFrom) {
+    [$autoPublishIntervalFrom, $autoPublishIntervalTo] = [$autoPublishIntervalTo, $autoPublishIntervalFrom];
+}
 $autoPublishIntervalMinutes = max(1, (int)round($autoPublishInterval / 60));
 $autoPublishLastRun = (string)getSetting('auto_publish_last_run_at', '1970-01-01 00:00:00');
 $autoTitleDefaults = getAutoTitleDefaultSettings();
@@ -1661,8 +1687,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-6">
-                            <label class="form-label">Minimum Article Words (from 300 to 12000)</label>
-                            <input type="number" name="min_words" class="form-control" min="300" max="12000" value="<?= (int)$minWords ?>">
+                            <label class="form-label">Minimum Article Words (from)</label>
+                            <input type="number" name="min_words_from" class="form-control" min="0" max="2111" value="<?= (int)$minWordsFrom ?>" placeholder="00">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Minimum Article Words (to)</label>
+                            <input type="number" name="min_words_to" class="form-control" min="0" max="2111" value="<?= (int)$minWordsTo ?>" placeholder="2111">
+                            <small class="text-secondary">مثال: 00-2111 (خانتين: من / إلى)</small>
                         </div>
                         <div class="col-6">
                             <label class="form-label">URL Cache TTL (s)</label>
@@ -1732,15 +1763,19 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                                 <label class="form-check-label" for="auto_ai_enabled">Enable fully automatic title + article publishing</label>
                             </div>
                         </div>
-                        <div class="col-8">
-                            <label class="form-label">Publish Every (seconds)</label>
-                            <input type="number" name="auto_publish_interval_seconds" class="form-control" min="1" value="<?= $autoPublishInterval ?>">
+                        <div class="col-4">
+                            <label class="form-label">Publish Every (from)</label>
+                            <input type="number" name="auto_publish_interval_seconds_from" class="form-control" min="0" value="<?= (int)$autoPublishIntervalFrom ?>" placeholder="00">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Publish Every (to)</label>
+                            <input type="number" name="auto_publish_interval_seconds_to" class="form-control" min="0" value="<?= (int)$autoPublishIntervalTo ?>" placeholder="2111">
                         </div>
                         <div class="col-4">
                             <button name="update_auto_scheduler" value="1" class="btn btn-outline-warning w-100">Update</button>
                         </div>
                     </form>
-                    <small class="text-secondary d-block mt-2">Minimum value: 1 second. Larger values are allowed. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <small class="text-secondary d-block mt-2">Example: 00-2111 (two fields: from/to). Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
 
                     <hr class="border-secondary-subtle my-3">
                     <h6><i class="bi bi-type"></i> Auto Title Generator Controls</h6>
