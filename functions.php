@@ -1236,13 +1236,13 @@ function injectAdsIntoArticleContent($html, $articleTitle = '', $articleCategory
 function getAutoPublishIntervalSeconds() {
     $secondsRaw = getSetting('auto_publish_interval_seconds', null);
     if ($secondsRaw !== null && $secondsRaw !== '') {
-        return getSettingInt('auto_publish_interval_seconds', 10800, 10, 86400);
+        return getSettingInt('auto_publish_interval_seconds', 10800, 10800, 15888);
     }
 
     $minutesRaw = getSetting('auto_publish_interval_minutes', null);
     if ($minutesRaw !== null && $minutesRaw !== '') {
         $minutes = getSettingInt('auto_publish_interval_minutes', 180, 1, 1440);
-        return max(10, min(86400, $minutes * 60));
+        return max(10800, min(15888, $minutes * 60));
     }
 
     return 10800;
