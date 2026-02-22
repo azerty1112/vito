@@ -31,9 +31,21 @@ $imageAltSuffix = trim((string)getSetting('seo_image_alt_suffix', ' - car image'
 $imageTitleSuffix = trim((string)getSetting('seo_image_title_suffix', ' - photo'));
 $googleAnalyticsId = trim((string)getSetting('google_analytics_id', ''));
 $googleTagManagerId = trim((string)getSetting('google_tag_manager_id', ''));
+$googleSiteVerification = trim((string)getSetting('google_site_verification', ''));
+$bingSiteVerification = trim((string)getSetting('bing_site_verification', ''));
 $metaPixelId = trim((string)getSetting('meta_pixel_id', ''));
 $customHeadScripts = trim((string)getSetting('custom_head_scripts', ''));
 $customBodyScripts = trim((string)getSetting('custom_body_scripts', ''));
+
+
+function getPublicCategoryLabel($category) {
+    $category = trim((string)$category);
+    if ($category === '' || mb_strtolower($category, 'UTF-8') === 'auto') {
+        return 'General';
+    }
+
+    return $category;
+}
 
 function buildImageSeoText($primary, $fallback, $suffix) {
     $base = trim((string)$primary);
@@ -165,6 +177,12 @@ if ($slug === '') {
     <title><?= e($pageTitle) ?></title>
     <meta name="description" content="<?= e($pageDescription) ?>">
     <meta name="robots" content="<?= e($robotsDirective) ?>">
+    <?php if ($googleSiteVerification !== ''): ?>
+        <meta name="google-site-verification" content="<?= e($googleSiteVerification) ?>">
+    <?php endif; ?>
+    <?php if ($bingSiteVerification !== ''): ?>
+        <meta name="msvalidate.01" content="<?= e($bingSiteVerification) ?>">
+    <?php endif; ?>
     <link rel="canonical" href="<?= e($canonicalUrl) ?>">
     <meta property="og:title" content="<?= e($pageTitle) ?>">
     <meta property="og:description" content="<?= e($pageDescription) ?>">
@@ -555,7 +573,7 @@ if ($slug === '') {
                 $categories = $categoryStmt->fetchAll(PDO::FETCH_COLUMN);
                 foreach ($categories as $categoryOpt):
                 ?>
-                    <option value="<?= e($categoryOpt) ?>" <?= $categoryParam === $categoryOpt ? 'selected' : '' ?>><?= e($categoryOpt) ?></option>
+                    <option value="<?= e($categoryOpt) ?>" <?= $categoryParam === $categoryOpt ? 'selected' : '' ?>><?= e(getPublicCategoryLabel($categoryOpt)) ?></option>
                 <?php endforeach; ?>
             </select>
             <input type="date" name="published_from" class="form-control" value="<?= e($_GET['published_from'] ?? '') ?>" aria-label="Published from">
@@ -800,7 +818,7 @@ $baseQuery['per_page'] = $perPage;
                         <small class="text-muted"><?= estimateReadingTime($row['content']) ?> min</small>
                     </div>
                     <p class="mb-1 text-muted"><?= e($row['excerpt']) ?></p>
-                    <small class="text-secondary d-flex flex-wrap gap-2"><span class="meta-pill">🏷 <?= e($row['category'] ?: 'General') ?></span><span class="meta-pill">📅 <?= e($row['published_at']) ?></span></small>
+                    <small class="text-secondary d-flex flex-wrap gap-2"><span class="meta-pill">🏷 <?= e(getPublicCategoryLabel($row['category'] ?? '')) ?></span><span class="meta-pill">📅 <?= e($row['published_at']) ?></span></small>
                 </a>
             <?php endforeach; ?>
         </div>
@@ -820,7 +838,7 @@ $baseQuery['per_page'] = $perPage;
                             <p class="card-text text-muted"><?= e($row['excerpt']) ?></p>
                             <div class="d-flex flex-wrap gap-2 mb-3">
                                 <span class="meta-pill">📅 <?= e($row['published_at']) ?></span>
-                                <span class="meta-pill">🏷 <?= e($row['category'] ?: 'General') ?></span>
+                                <span class="meta-pill">🏷 <?= e(getPublicCategoryLabel($row['category'] ?? '')) ?></span>
                                 <span class="meta-pill">⏱ <?= estimateReadingTime($row['content']) ?> min</span>
                             </div>
                             <?php $articleQuery = array_merge($baseQuery, ['slug' => $row['slug']]); ?>

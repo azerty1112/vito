@@ -120,3 +120,17 @@ Generated articles now include:
 - a buyer persona section (who should buy),
 - an FAQ block,
 - and dynamic minimum word count based on the `min_words` setting.
+
+### Search indexing setup (Google + Bing)
+
+The project now includes:
+- `sitemap.php` to generate a dynamic XML sitemap for homepage + all articles.
+- `robots.txt` with sitemap hint for crawlers.
+- Admin fields for Google Search Console and Bing verification meta tags.
+
+Submit this sitemap in both consoles:
+
+```
+https://your-domain.com/sitemap.php
+```
+
