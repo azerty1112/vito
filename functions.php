@@ -1086,7 +1086,16 @@ function injectSeoAutoLinks($html, $currentArticleId = 0) {
     }
 
     $root = $dom->getElementById('article-content-root');
-    return $root ? innerHTML($root) : $html;
+    if (!$root) {
+        return $html;
+    }
+
+    $result = "";
+    foreach ($root->childNodes as $child) {
+        $result .= $dom->saveHTML($child);
+    }
+
+    return $result !== "" ? $result : $html;
 }
 
 function injectAdsIntoArticleContent($html, $articleTitle = '', $articleCategory = '') {
@@ -1236,13 +1245,17 @@ function injectAdsIntoArticleContent($html, $articleTitle = '', $articleCategory
 function getAutoPublishIntervalSeconds() {
     $secondsRaw = getSetting('auto_publish_interval_seconds', null);
     if ($secondsRaw !== null && $secondsRaw !== '') {
-        return getSettingInt('auto_publish_interval_seconds', 10800, 10800, 15888);
+        return getSettingInt('auto_publish_interval_seconds', 10800, 1, PHP_INT_MAX);
     }
 
     $minutesRaw = getSetting('auto_publish_interval_minutes', null);
     if ($minutesRaw !== null && $minutesRaw !== '') {
-        $minutes = getSettingInt('auto_publish_interval_minutes', 180, 1, 1440);
-        return max(10800, min(15888, $minutes * 60));
+        $minutes = getSettingInt('auto_publish_interval_minutes', 180, 1, PHP_INT_MAX);
+        if ($minutes > intdiv(PHP_INT_MAX, 60)) {
+            return PHP_INT_MAX;
+        }
+
+        return max(1, $minutes * 60);
     }
 
     return 10800;

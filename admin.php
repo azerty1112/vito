@@ -362,7 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $queueMaxAttempts = max(1, min(20, $queueMaxAttempts));
 
         $intervalMinutes = (int)($_POST['auto_publish_interval_minutes'] ?? 180);
-        $intervalMinutes = max(180, min(264, $intervalMinutes));
+        $intervalMinutes = max(1, $intervalMinutes);
 
         $visitExcludedIps = trim((string)($_POST['visit_excluded_ips'] ?? ''));
         if (mb_strlen($visitExcludedIps) > 4000) {
@@ -379,7 +379,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('visit_excluded_ips', $visitExcludedIps);
 
         // Keep minute + second based scheduler settings synchronized.
-        setSetting('auto_publish_interval_seconds', (string)max(10800, min(15888, $intervalMinutes * 60)));
+        $secondsFromMinutes = $intervalMinutes > intdiv(PHP_INT_MAX, 60) ? PHP_INT_MAX : ($intervalMinutes * 60);
+        setSetting('auto_publish_interval_seconds', (string)max(1, $secondsFromMinutes));
 
         $_SESSION['flash_message'] = 'Pipeline configuration updated successfully.';
         $_SESSION['flash_type'] = 'success';
@@ -391,7 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_auto_scheduler'])) {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
         $interval = (int)($_POST['auto_publish_interval_seconds'] ?? 10800);
-        $interval = max(10800, min(15888, $interval));
+        $interval = max(1, $interval);
 
         setSetting('auto_ai_enabled', (string)$enabled);
         setSetting('auto_publish_interval_seconds', (string)$interval);
@@ -1660,7 +1661,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-6">
-                            <label class="form-label">Minimum Article Words</label>
+                            <label class="form-label">Minimum Article Words (from 300 to 12000)</label>
                             <input type="number" name="min_words" class="form-control" min="300" max="12000" value="<?= (int)$minWords ?>">
                         </div>
                         <div class="col-6">
@@ -1681,7 +1682,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="col-6">
                             <label class="form-label">Auto Publish Interval (minutes)</label>
-                            <input type="number" name="auto_publish_interval_minutes" class="form-control" min="1" max="1440" value="<?= (int)$autoPublishIntervalMinutes ?>">
+                            <input type="number" name="auto_publish_interval_minutes" class="form-control" min="1" value="<?= (int)$autoPublishIntervalMinutes ?>">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Exclude IPs From Visit Analytics</label>
@@ -1733,13 +1734,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="col-8">
                             <label class="form-label">Publish Every (seconds)</label>
-                            <input type="number" name="auto_publish_interval_seconds" class="form-control" min="10800" max="15888" value="<?= $autoPublishInterval ?>">
+                            <input type="number" name="auto_publish_interval_seconds" class="form-control" min="1" value="<?= $autoPublishInterval ?>">
                         </div>
                         <div class="col-4">
                             <button name="update_auto_scheduler" value="1" class="btn btn-outline-warning w-100">Update</button>
                         </div>
                     </form>
-                    <small class="text-secondary d-block mt-2">Allowed range: 10800–15888 seconds. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <small class="text-secondary d-block mt-2">Minimum value: 1 second. Larger values are allowed. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
 
                     <hr class="border-secondary-subtle my-3">
                     <h6><i class="bi bi-type"></i> Auto Title Generator Controls</h6>
