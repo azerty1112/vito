@@ -362,7 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $queueMaxAttempts = max(1, min(20, $queueMaxAttempts));
 
         $intervalMinutes = (int)($_POST['auto_publish_interval_minutes'] ?? 180);
-        $intervalMinutes = max(1, min(1440, $intervalMinutes));
+        $intervalMinutes = max(180, min(264, $intervalMinutes));
 
         $visitExcludedIps = trim((string)($_POST['visit_excluded_ips'] ?? ''));
         if (mb_strlen($visitExcludedIps) > 4000) {
@@ -379,7 +379,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('visit_excluded_ips', $visitExcludedIps);
 
         // Keep minute + second based scheduler settings synchronized.
-        setSetting('auto_publish_interval_seconds', (string)($intervalMinutes * 60));
+        setSetting('auto_publish_interval_seconds', (string)max(10800, min(15888, $intervalMinutes * 60)));
 
         $_SESSION['flash_message'] = 'Pipeline configuration updated successfully.';
         $_SESSION['flash_type'] = 'success';
@@ -391,7 +391,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_auto_scheduler'])) {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
         $interval = (int)($_POST['auto_publish_interval_seconds'] ?? 10800);
-        $interval = max(10, min(86400, $interval));
+        $interval = max(10800, min(15888, $interval));
 
         setSetting('auto_ai_enabled', (string)$enabled);
         setSetting('auto_publish_interval_seconds', (string)$interval);
@@ -1733,13 +1733,13 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="col-8">
                             <label class="form-label">Publish Every (seconds)</label>
-                            <input type="number" name="auto_publish_interval_seconds" class="form-control" min="10" max="86400" value="<?= $autoPublishInterval ?>">
+                            <input type="number" name="auto_publish_interval_seconds" class="form-control" min="10800" max="15888" value="<?= $autoPublishInterval ?>">
                         </div>
                         <div class="col-4">
                             <button name="update_auto_scheduler" value="1" class="btn btn-outline-warning w-100">Update</button>
                         </div>
                     </form>
-                    <small class="text-secondary d-block mt-2">Set to 10 seconds for a fast demo. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <small class="text-secondary d-block mt-2">Allowed range: 10800–15888 seconds. Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
 
                     <hr class="border-secondary-subtle my-3">
                     <h6><i class="bi bi-type"></i> Auto Title Generator Controls</h6>
