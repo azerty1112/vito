@@ -807,12 +807,13 @@ function getAdSettings() {
         'min_words_before_first' => getSettingInt('ads_min_words_before_first_injection', 180, 80, 600),
         'min_article_words' => getSettingInt('ads_min_article_words', 420, 120, 3000),
         'blocked_title_keywords' => trim((string)getSetting('ads_blocked_title_keywords', '')),
+        'blocked_categories' => trim((string)getSetting('ads_blocked_categories', '')),
         'label' => mb_substr($label, 0, 40),
         'html_code' => trim((string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>')),
     ];
 }
 
-function parseAdBlockedTitleKeywords($value) {
+function parseAdListTokens($value) {
     $raw = preg_split('/[,\n]+/u', (string)$value);
     $keywords = [];
     foreach ($raw as $item) {
@@ -824,6 +825,10 @@ function parseAdBlockedTitleKeywords($value) {
     }
 
     return array_keys($keywords);
+}
+
+function parseAdBlockedTitleKeywords($value) {
+    return parseAdListTokens($value);
 }
 
 function countVisibleWords($text) {
@@ -853,7 +858,7 @@ function buildInlineAdUnitHtml(array $adSettings, $position = 1) {
         . '</aside>';
 }
 
-function injectAdsIntoArticleContent($html, $articleTitle = '') {
+function injectAdsIntoArticleContent($html, $articleTitle = '', $articleCategory = '') {
     $content = trim((string)$html);
     if ($content === '') {
         return $html;
@@ -885,6 +890,14 @@ function injectAdsIntoArticleContent($html, $articleTitle = '') {
             if ($title !== '' && mb_stripos($title, $keyword) !== false) {
                 return $html;
             }
+        }
+    }
+
+    $blockedCategories = parseAdListTokens($adSettings['blocked_categories'] ?? '');
+    if ($blockedCategories) {
+        $category = mb_strtolower(trim((string)$articleCategory));
+        if ($category !== '' && in_array($category, $blockedCategories, true)) {
+            return $html;
         }
     }
 
