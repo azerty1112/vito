@@ -347,9 +347,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['update_pipeline_settings'])) {
         $minWordsFrom = (int)($_POST['min_words_from'] ?? 300);
-        $minWordsTo = (int)($_POST['min_words_to'] ?? 2111);
-        $minWordsFrom = max(0, min(2111, $minWordsFrom));
-        $minWordsTo = max(0, min(2111, $minWordsTo));
+        $minWordsTo = (int)($_POST['min_words_to'] ?? 3000);
+        $minWordsFrom = max(0, min(300000, $minWordsFrom));
+        $minWordsTo = max(0, min(300000, $minWordsTo));
         if ($minWordsTo < $minWordsFrom) {
             [$minWordsFrom, $minWordsTo] = [$minWordsTo, $minWordsFrom];
         }
@@ -401,8 +401,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $enabled = isset($_POST['auto_ai_enabled']) ? 1 : 0;
         $intervalFrom = (int)($_POST['auto_publish_interval_seconds_from'] ?? 1);
         $intervalTo = (int)($_POST['auto_publish_interval_seconds_to'] ?? 10800);
-        $intervalFrom = max(0, $intervalFrom);
-        $intervalTo = max(0, $intervalTo);
+        $intervalFrom = max(0, min(300000, $intervalFrom));
+        $intervalTo = max(0, min(300000, $intervalTo));
         if ($intervalTo < $intervalFrom) {
             [$intervalFrom, $intervalTo] = [$intervalTo, $intervalFrom];
         }
@@ -1005,8 +1005,8 @@ $adsBlockedTitleKeywords = (string)getSetting('ads_blocked_title_keywords', '');
 $adsBlockedCategories = (string)getSetting('ads_blocked_categories', '');
 $adsLabelText = (string)getSetting('ads_label_text', 'Sponsored');
 $adsHtmlCode = (string)getSetting('ads_html_code', '<div class="ad-unit-inner">Place your ad code here</div>');
-$minWordsFrom = getSettingInt('min_words_from', 300, 0, 2111);
-$minWordsTo = getSettingInt('min_words_to', getSettingInt('min_words', 2111, 300, 2111), 0, 2111);
+$minWordsFrom = getSettingInt('min_words_from', 300, 0, 300000);
+$minWordsTo = getSettingInt('min_words_to', getSettingInt('min_words', 3000, 300, 300000), 0, 300000);
 if ($minWordsTo < $minWordsFrom) {
     [$minWordsFrom, $minWordsTo] = [$minWordsTo, $minWordsFrom];
 }
@@ -1688,12 +1688,12 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
                         <div class="col-6">
                             <label class="form-label">Minimum Article Words (from)</label>
-                            <input type="number" name="min_words_from" class="form-control" min="0" max="2111" value="<?= (int)$minWordsFrom ?>" placeholder="00">
+                            <input type="number" name="min_words_from" class="form-control" min="0" max="300000" value="<?= (int)$minWordsFrom ?>" placeholder="0000" required>
                         </div>
                         <div class="col-6">
                             <label class="form-label">Minimum Article Words (to)</label>
-                            <input type="number" name="min_words_to" class="form-control" min="0" max="2111" value="<?= (int)$minWordsTo ?>" placeholder="2111">
-                            <small class="text-secondary">مثال: 00-2111 (خانتين: من / إلى)</small>
+                            <input type="number" name="min_words_to" class="form-control" min="0" max="300000" value="<?= (int)$minWordsTo ?>" placeholder="300000" required>
+                            <small class="text-secondary">النطاق المسموح: من 0000 إلى 300000 (خانتين: من / إلى).</small>
                         </div>
                         <div class="col-6">
                             <label class="form-label">URL Cache TTL (s)</label>
@@ -1765,17 +1765,17 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="col-4">
                             <label class="form-label">Publish Every (from)</label>
-                            <input type="number" name="auto_publish_interval_seconds_from" class="form-control" min="0" value="<?= (int)$autoPublishIntervalFrom ?>" placeholder="00">
+                            <input type="number" name="auto_publish_interval_seconds_from" class="form-control" min="0" max="300000" value="<?= (int)$autoPublishIntervalFrom ?>" placeholder="0000" required>
                         </div>
                         <div class="col-4">
                             <label class="form-label">Publish Every (to)</label>
-                            <input type="number" name="auto_publish_interval_seconds_to" class="form-control" min="0" value="<?= (int)$autoPublishIntervalTo ?>" placeholder="2111">
+                            <input type="number" name="auto_publish_interval_seconds_to" class="form-control" min="0" max="300000" value="<?= (int)$autoPublishIntervalTo ?>" placeholder="300000" required>
                         </div>
                         <div class="col-4">
                             <button name="update_auto_scheduler" value="1" class="btn btn-outline-warning w-100">Update</button>
                         </div>
                     </form>
-                    <small class="text-secondary d-block mt-2">Example: 00-2111 (two fields: from/to). Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
+                    <small class="text-secondary d-block mt-2">Range: 0000-300000 (two fields: from/to). Last automatic publish run: <?= e($autoPublishLastRun) ?></small>
 
                     <hr class="border-secondary-subtle my-3">
                     <h6><i class="bi bi-type"></i> Auto Title Generator Controls</h6>
