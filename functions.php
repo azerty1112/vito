@@ -2069,7 +2069,7 @@ function generateArticle($title) {
     $content .= "<h2>Final Editorial Verdict</h2>\n";
     $content .= "<p class='mt-3'>The {$title} succeeds because it behaves like a complete product, not a collection of isolated features. It combines emotional appeal with practical intelligence, and that combination is exactly what modern buyers need in an uncertain, fast-evolving market. If your priority is a vehicle that remains convincing beyond launch-week excitement, this model is a serious and well-justified candidate.</p>";
 
-    $minimumWords = getSettingInt('min_words', 3000, 1200, 5000);
+    $minimumWords = getSettingInt('min_words', 3000, 1200, 300000);
     $content = ensureMinimumWordCount($content, $title, $minimumWords);
 
     $plainText = trim(strip_tags($content));
