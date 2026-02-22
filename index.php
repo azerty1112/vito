@@ -464,6 +464,17 @@ if ($slug === '' && $staticPage === '') {
             color: #334155;
         }
 
+        .article-content .seo-auto-link {
+            color: #c2410c;
+            font-weight: 600;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 2px;
+        }
+
+        .article-content .seo-auto-link:hover {
+            color: #9a3412;
+        }
+
         .article-content p:first-of-type::first-letter {
             font-size: 2.1rem;
             font-weight: 700;
@@ -841,7 +852,8 @@ $baseQuery['per_page'] = $perPage;
     ?>
 
     <?php if ($art): ?>
-        <?php $articleContentWithAds = injectAdsIntoArticleContent((string)($art['content'] ?? ''), (string)($art['title'] ?? ''), (string)($art['category'] ?? '')); ?>
+        <?php $articleContentWithAds = injectAdsIntoArticleContent((string)($art['content'] ?? ''), (string)($art['title'] ?? ''), (string)($art['category'] ?? ''));
+        $articleContentWithAds = injectSeoAutoLinks($articleContentWithAds, (int)($art['id'] ?? 0)); ?>
         <a href="index.php<?= $baseQuery ? '?' . http_build_query($baseQuery) : '' ?>" class="btn btn-sm btn-outline-secondary mb-3">&larr; Back to articles</a>
         <article class="article-content bg-white p-4 rounded shadow-sm">
             <header class="article-header-panel">

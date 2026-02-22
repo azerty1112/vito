@@ -858,6 +858,237 @@ function buildInlineAdUnitHtml(array $adSettings, $position = 1) {
         . '</aside>';
 }
 
+
+function parseSeoAutoLinkRules($rawRules) {
+    $rules = [];
+    $lines = preg_split('/\r\n|\r|\n/', (string)$rawRules);
+    foreach ($lines as $line) {
+        $line = trim((string)$line);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+
+        $parts = array_map('trim', explode('|', $line));
+        if (count($parts) < 1) {
+            continue;
+        }
+
+        $keyword = trim((string)($parts[0] ?? ''));
+        $destination = trim((string)($parts[1] ?? 'internal'));
+        if ($keyword === '' || $destination === '') {
+            continue;
+        }
+
+        $rules[] = [
+            'keyword' => $keyword,
+            'destination' => $destination,
+            'new_tab' => isset($parts[2]) ? in_array(strtolower($parts[2]), ['1', 'yes', 'true', 'newtab', 'blank'], true) : false,
+            'nofollow' => isset($parts[3]) ? in_array(strtolower($parts[3]), ['1', 'yes', 'true', 'nofollow'], true) : false,
+        ];
+    }
+
+    return $rules;
+}
+
+function resolveSeoAutoLinkDestination(array $rule, $currentArticleId = 0) {
+    $destination = trim((string)($rule['destination'] ?? ''));
+    if ($destination === '') {
+        return null;
+    }
+
+    if (preg_match('/^https?:\/\//i', $destination)) {
+        return [
+            'url' => $destination,
+            'external' => true,
+        ];
+    }
+
+    if (str_starts_with($destination, 'slug:')) {
+        $slug = slugify(substr($destination, 5));
+        if ($slug === '') {
+            return null;
+        }
+
+        return [
+            'url' => 'index.php?slug=' . rawurlencode($slug),
+            'external' => false,
+        ];
+    }
+
+    if (strtolower($destination) === 'internal') {
+        $pdo = db_connect();
+        $stmt = $pdo->prepare("SELECT slug FROM articles WHERE id != ? AND title LIKE ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([(int)$currentArticleId, '%' . $rule['keyword'] . '%']);
+        $slug = (string)$stmt->fetchColumn();
+        if ($slug === '') {
+            return null;
+        }
+
+        return [
+            'url' => 'index.php?slug=' . rawurlencode($slug),
+            'external' => false,
+        ];
+    }
+
+    if (str_starts_with($destination, '/')) {
+        return [
+            'url' => $destination,
+            'external' => false,
+        ];
+    }
+
+    return null;
+}
+
+
+function buildAutomaticInternalLinkRules($currentArticleId = 0, $limit = 3) {
+    $limit = max(1, min(10, (int)$limit));
+    $pdo = db_connect();
+    $stmt = $pdo->prepare("SELECT title, slug FROM articles WHERE id != ? ORDER BY id DESC LIMIT 30");
+    $stmt->execute([(int)$currentArticleId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $rules = [];
+    foreach ($rows as $row) {
+        $title = trim((string)($row['title'] ?? ''));
+        $slug = trim((string)($row['slug'] ?? ''));
+        if ($title === '' || $slug === '') {
+            continue;
+        }
+
+        $keyword = $title;
+        if (mb_strlen($keyword) > 80) {
+            $keyword = mb_substr($keyword, 0, 80);
+        }
+
+        $rules[] = [
+            'keyword' => $keyword,
+            'destination' => 'slug:' . $slug,
+            'new_tab' => false,
+            'nofollow' => false,
+        ];
+
+        if (count($rules) >= $limit) {
+            break;
+        }
+    }
+
+    return $rules;
+}
+
+function injectSeoAutoLinks($html, $currentArticleId = 0) {
+    $content = trim((string)$html);
+    if ($content === '') {
+        return $html;
+    }
+
+    $rules = parseSeoAutoLinkRules(getSetting('seo_auto_link_rules', ''));
+
+    $autoInternalEnabled = getSettingInt('seo_auto_link_auto_internal', 1, 0, 1) === 1;
+    $autoInternalLimit = getSettingInt('seo_auto_link_max_per_article', 3, 1, 10);
+    if ($autoInternalEnabled) {
+        $rules = array_merge($rules, buildAutomaticInternalLinkRules($currentArticleId, $autoInternalLimit));
+    }
+
+    if (!$rules) {
+        return $html;
+    }
+
+    $resolved = [];
+    foreach ($rules as $rule) {
+        $target = resolveSeoAutoLinkDestination($rule, $currentArticleId);
+        if (!$target || trim((string)($target['url'] ?? '')) === '') {
+            continue;
+        }
+        $rule['url'] = $target['url'];
+        $rule['external'] = (bool)($target['external'] ?? false);
+        $keywordHash = mb_strtolower((string)($rule['keyword'] ?? ''));
+        if ($keywordHash === '' || isset($resolved[$keywordHash])) {
+            continue;
+        }
+        $resolved[$keywordHash] = $rule;
+    }
+
+    if (!$resolved) {
+        return $html;
+    }
+
+    $wrappedHtml = '<div id="article-content-root">' . $content . '</div>';
+    $previousUseErrors = libxml_use_internal_errors(true);
+    $dom = new DOMDocument('1.0', 'UTF-8');
+    $loaded = $dom->loadHTML('<?xml encoding="utf-8" ?>' . $wrappedHtml, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousUseErrors);
+
+    if (!$loaded) {
+        return $html;
+    }
+
+    $xpath = new DOMXPath($dom);
+    $textNodes = $xpath->query('//div[@id="article-content-root"]//text()[normalize-space(.)!="" and not(ancestor::a) and not(ancestor::script) and not(ancestor::style) and not(ancestor::h1) and not(ancestor::h2) and not(ancestor::h3)]');
+    if (!$textNodes || $textNodes->length === 0) {
+        return $html;
+    }
+
+    $resolved = array_values($resolved);
+
+    $usedKeywords = [];
+    foreach ($textNodes as $textNode) {
+        $text = (string)$textNode->nodeValue;
+        if ($text === '') {
+            continue;
+        }
+
+        foreach ($resolved as $rule) {
+            $keyword = (string)$rule['keyword'];
+            $keyHash = mb_strtolower($keyword);
+            if ($keyword === '' || isset($usedKeywords[$keyHash])) {
+                continue;
+            }
+
+            $pattern = '/(?<![\p{L}\p{N}])(' . preg_quote($keyword, '/') . ')(?![\p{L}\p{N}])/ui';
+            if (!preg_match($pattern, $text)) {
+                continue;
+            }
+
+            $replacement = '<a href="' . e($rule['url']) . '" class="seo-auto-link"';
+            $openInNewTab = !empty($rule['new_tab']) || !empty($rule['external']);
+            if ($openInNewTab) {
+                $replacement .= ' target="_blank"';
+            }
+
+            $relParts = [];
+            if ($openInNewTab) {
+                $relParts[] = 'noopener';
+            }
+            if (!empty($rule['nofollow'])) {
+                $relParts[] = 'nofollow';
+            }
+            if ($relParts) {
+                $replacement .= ' rel="' . implode(' ', $relParts) . '"';
+            }
+            $replacement .= '>$1</a>';
+
+            $updated = preg_replace($pattern, $replacement, $text, 1);
+            if ($updated === null || $updated === $text) {
+                continue;
+            }
+
+            $fragment = $dom->createDocumentFragment();
+            if (!$fragment->appendXML($updated)) {
+                continue;
+            }
+
+            $textNode->parentNode->replaceChild($fragment, $textNode);
+            $usedKeywords[$keyHash] = true;
+            break;
+        }
+    }
+
+    $root = $dom->getElementById('article-content-root');
+    return $root ? innerHTML($root) : $html;
+}
+
 function injectAdsIntoArticleContent($html, $articleTitle = '', $articleCategory = '') {
     $content = trim((string)$html);
     if ($content === '') {
