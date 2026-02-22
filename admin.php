@@ -202,6 +202,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_scripts_settings'])) {
         $googleAnalyticsId = strtoupper(trim((string)($_POST['google_analytics_id'] ?? '')));
         $googleTagManagerId = strtoupper(trim((string)($_POST['google_tag_manager_id'] ?? '')));
+        $googleSiteVerification = trim((string)($_POST['google_site_verification'] ?? ''));
+        $bingSiteVerification = trim((string)($_POST['bing_site_verification'] ?? ''));
         $metaPixelId = preg_replace('/[^0-9]/', '', trim((string)($_POST['meta_pixel_id'] ?? '')));
         $customHeadScripts = trim((string)($_POST['custom_head_scripts'] ?? ''));
         $customBodyScripts = trim((string)($_POST['custom_body_scripts'] ?? ''));
@@ -211,6 +213,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($googleTagManagerId !== '' && !preg_match('/^GTM-[A-Z0-9]+$/', $googleTagManagerId)) {
             $googleTagManagerId = '';
+        }
+        if (mb_strlen($googleSiteVerification) > 255) {
+            $googleSiteVerification = mb_substr($googleSiteVerification, 0, 255);
+        }
+        if (mb_strlen($bingSiteVerification) > 255) {
+            $bingSiteVerification = mb_substr($bingSiteVerification, 0, 255);
         }
         if ($metaPixelId !== '' && mb_strlen($metaPixelId) > 30) {
             $metaPixelId = mb_substr($metaPixelId, 0, 30);
@@ -224,6 +232,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         setSetting('google_analytics_id', $googleAnalyticsId);
         setSetting('google_tag_manager_id', $googleTagManagerId);
+        setSetting('google_site_verification', $googleSiteVerification);
+        setSetting('bing_site_verification', $bingSiteVerification);
         setSetting('meta_pixel_id', $metaPixelId);
         setSetting('custom_head_scripts', $customHeadScripts);
         setSetting('custom_body_scripts', $customBodyScripts);
@@ -944,9 +954,13 @@ $seoImageAltSuffix = (string)getSetting('seo_image_alt_suffix', ' - car image');
 $seoImageTitleSuffix = (string)getSetting('seo_image_title_suffix', ' - photo');
 $googleAnalyticsId = (string)getSetting('google_analytics_id', '');
 $googleTagManagerId = (string)getSetting('google_tag_manager_id', '');
+$googleSiteVerification = (string)getSetting('google_site_verification', '');
+$bingSiteVerification = (string)getSetting('bing_site_verification', '');
 $metaPixelId = (string)getSetting('meta_pixel_id', '');
 $customHeadScripts = (string)getSetting('custom_head_scripts', '');
 $customBodyScripts = (string)getSetting('custom_body_scripts', '');
+$siteBaseUrl = getSiteBaseUrl();
+$sitemapUrl = $siteBaseUrl !== '' ? ($siteBaseUrl . '/sitemap.php') : '/sitemap.php';
 
 $adsEnabled = getSettingInt('ads_enabled', 0, 0, 1) === 1;
 $adsInjectionMode = (string)getSetting('ads_injection_mode', 'smart');
@@ -1544,6 +1558,16 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <input type="text" name="google_tag_manager_id" class="form-control" maxlength="20" value="<?= e($googleTagManagerId) ?>" placeholder="GTM-XXXXXXX">
                         </div>
                         <div class="col-12">
+                            <label class="form-label">Google Site Verification</label>
+                            <input type="text" name="google_site_verification" class="form-control" maxlength="255" value="<?= e($googleSiteVerification) ?>" placeholder="google-site-verification token">
+                            <small class="text-secondary">Paste token from Search Console meta tag content.</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Bing Site Verification</label>
+                            <input type="text" name="bing_site_verification" class="form-control" maxlength="255" value="<?= e($bingSiteVerification) ?>" placeholder="msvalidate.01 token">
+                            <small class="text-secondary">Paste token from Bing Webmaster Tools meta tag content.</small>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">Meta Pixel ID</label>
                             <input type="text" name="meta_pixel_id" class="form-control" maxlength="30" value="<?= e($metaPixelId) ?>" placeholder="123456789012345">
                         </div>
@@ -1560,6 +1584,10 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </form>
                     <small class="text-secondary">Use this section to inject tracking scripts globally across the site.</small>
+                    <div class="alert alert-secondary mt-3 mb-0">
+                        <div><strong>Sitemap URL:</strong> <code><?= e($sitemapUrl) ?></code></div>
+                        <div class="small mt-2">Submit this URL in Google Search Console and Bing Webmaster Tools for faster indexing.</div>
+                    </div>
                 </div>
             </div>
 

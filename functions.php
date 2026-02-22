@@ -1881,7 +1881,7 @@ function saveArticle($title, $data) {
     $pdo = db_connect();
     $slug = generateUniqueSlug($title);
     $stmt = $pdo->prepare("INSERT INTO articles (title, slug, content, image, excerpt, published_at, category) VALUES (?,?,?,?,?,?,?)");
-    executeStatementWithRetry($stmt, [$title, $slug, $data['content'], $data['image'], $data['excerpt'], date('Y-m-d H:i:s'), 'Auto']);
+    executeStatementWithRetry($stmt, [$title, $slug, $data['content'], $data['image'], $data['excerpt'], date('Y-m-d H:i:s'), 'News']);
     $articleId = (int)$pdo->lastInsertId();
     writeArticleExportFiles($articleId, $slug, [
         'id' => $articleId,
