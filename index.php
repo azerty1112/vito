@@ -391,9 +391,92 @@ if ($slug === '') {
             line-height: 1.8;
         }
 
+        .article-content h1,
+        .article-content h2,
+        .article-content h3 {
+            color: #9a3412;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .article-content p {
+            font-size: 1.04rem;
+            color: #334155;
+        }
+
+        .article-content p:first-of-type::first-letter {
+            font-size: 2.1rem;
+            font-weight: 700;
+            color: #ea580c;
+            float: left;
+            line-height: 1;
+            padding-right: 0.3rem;
+            margin-top: 0.1rem;
+        }
+
+        .article-content blockquote {
+            margin: 1.25rem 0;
+            padding: 0.9rem 1rem;
+            border-inline-start: 4px solid #f97316;
+            background: #fff7ed;
+            border-radius: 0.75rem;
+            color: #7c2d12;
+            font-style: italic;
+        }
+
+        .article-content ul,
+        .article-content ol {
+            padding-inline-start: 1.2rem;
+        }
+
         .article-content img {
             max-width: 100%;
             border-radius: 0.7rem;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+            margin-block: 0.9rem;
+        }
+
+        .article-header-panel {
+            background: linear-gradient(120deg, #fff7ed 0%, #ffffff 60%);
+            border: 1px solid #fed7aa;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .article-kicker {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.73rem;
+            color: #c2410c;
+            font-weight: 700;
+        }
+
+        .article-title {
+            font-size: clamp(1.5rem, 2.6vw, 2.2rem);
+            margin-top: 0.35rem;
+            margin-bottom: 0.5rem;
+            color: #7c2d12;
+        }
+
+        .article-excerpt {
+            color: #57534e;
+            margin-bottom: 0.7rem;
+        }
+
+        .hero-highlight {
+            background: linear-gradient(90deg, #ea580c, #f97316);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .card-title {
+            color: #1e293b;
+        }
+
+        .card:hover .card-title {
+            color: #c2410c;
         }
 
         .inline-ad-unit {
@@ -652,15 +735,21 @@ $baseQuery['per_page'] = $perPage;
         <?php $articleContentWithAds = injectAdsIntoArticleContent((string)($art['content'] ?? ''), (string)($art['title'] ?? ''), (string)($art['category'] ?? '')); ?>
         <a href="index.php<?= $baseQuery ? '?' . http_build_query($baseQuery) : '' ?>" class="btn btn-sm btn-outline-secondary mb-3">&larr; Back to articles</a>
         <article class="article-content bg-white p-4 rounded shadow-sm">
+            <header class="article-header-panel">
+                <span class="article-kicker">Featured read</span>
+                <h1 class="article-title"><?= e($art['title']) ?></h1>
+                <?php if (trim((string)($art['excerpt'] ?? '')) !== ''): ?>
+                    <p class="article-excerpt"><?= e($art['excerpt']) ?></p>
+                <?php endif; ?>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="meta-pill">🏷 <?= e(getPublicCategoryLabel($art['category'] ?? '')) ?></span>
+                    <span class="meta-pill">📅 <?= e($art['published_at']) ?></span>
+                    <span class="meta-pill">⏱ <?= estimateReadingTime($art['content']) ?> min read</span>
+                </div>
+            </header>
             <?php $heroImage = trim((string)($art['image'] ?? '')) !== '' ? $art['image'] : buildFreeArticleImageUrl($art['title'] ?? $art['slug']); ?>
             <img src="<?= e($heroImage) ?>" alt="<?= e(buildImageSeoText($art['title'] ?? '', $art['slug'] ?? '', $imageAltSuffix)) ?>" title="<?= e(buildImageSeoText($art['title'] ?? '', $art['slug'] ?? '', $imageTitleSuffix)) ?>" class="img-fluid rounded mb-3" loading="eager" decoding="async" fetchpriority="high">
             <?= $articleContentWithAds ?>
-            <hr>
-            <div class="d-flex flex-wrap gap-2">
-                <span class="meta-pill">⏱ <?= estimateReadingTime($art['content']) ?> min read</span>
-                <span class="meta-pill">🏷 <?= e($art['category'] ?: 'General') ?></span>
-                <span class="meta-pill">📅 <?= e($art['published_at']) ?></span>
-            </div>
         </article>
 
         <?php
@@ -789,6 +878,12 @@ $baseQuery['per_page'] = $perPage;
         $avgReading = (int)ceil($sumReading / count($articles));
     }
     ?>
+
+    <section class="mb-4 p-4 rounded-4 featured-spotlight text-white" style="background:linear-gradient(130deg,#0f172a,#1d4ed8 58%,#f97316);">
+        <small class="text-uppercase">New look</small>
+        <h1 class="h3 mt-2 mb-2">Discover <span class="hero-highlight">colorful</span> automotive insights</h1>
+        <p class="hero-subtitle mb-0">Browse curated reviews, practical maintenance advice, and buying tips with cleaner cards and improved article readability.</p>
+    </section>
 
     <div class="row g-3 mb-4">
         <div class="col-md-4"><div class="stats-card p-3"><small class="text-muted d-block">Total articles</small><strong class="fs-4"><?= $totalArticles ?></strong></div></div>
