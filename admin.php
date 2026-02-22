@@ -199,6 +199,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (isset($_POST['update_scripts_settings'])) {
+        $googleAnalyticsId = strtoupper(trim((string)($_POST['google_analytics_id'] ?? '')));
+        $googleTagManagerId = strtoupper(trim((string)($_POST['google_tag_manager_id'] ?? '')));
+        $metaPixelId = preg_replace('/[^0-9]/', '', trim((string)($_POST['meta_pixel_id'] ?? '')));
+        $customHeadScripts = trim((string)($_POST['custom_head_scripts'] ?? ''));
+        $customBodyScripts = trim((string)($_POST['custom_body_scripts'] ?? ''));
+
+        if ($googleAnalyticsId !== '' && !preg_match('/^(G-[A-Z0-9]+|GT-[A-Z0-9]+|UA-\d+-\d+|AW-\d+)$/', $googleAnalyticsId)) {
+            $googleAnalyticsId = '';
+        }
+        if ($googleTagManagerId !== '' && !preg_match('/^GTM-[A-Z0-9]+$/', $googleTagManagerId)) {
+            $googleTagManagerId = '';
+        }
+        if ($metaPixelId !== '' && mb_strlen($metaPixelId) > 30) {
+            $metaPixelId = mb_substr($metaPixelId, 0, 30);
+        }
+        if (mb_strlen($customHeadScripts) > 20000) {
+            $customHeadScripts = mb_substr($customHeadScripts, 0, 20000);
+        }
+        if (mb_strlen($customBodyScripts) > 20000) {
+            $customBodyScripts = mb_substr($customBodyScripts, 0, 20000);
+        }
+
+        setSetting('google_analytics_id', $googleAnalyticsId);
+        setSetting('google_tag_manager_id', $googleTagManagerId);
+        setSetting('meta_pixel_id', $metaPixelId);
+        setSetting('custom_head_scripts', $customHeadScripts);
+        setSetting('custom_body_scripts', $customBodyScripts);
+
+        $_SESSION['flash_message'] = 'Scripts settings updated successfully.';
+        $_SESSION['flash_type'] = 'success';
+        header('Location: admin.php');
+        exit;
+    }
+
 
     if (isset($_POST['update_ads_settings'])) {
         $adsEnabled = isset($_POST['ads_enabled']) ? 1 : 0;
@@ -907,6 +942,11 @@ $seoDefaultOgImage = (string)getSetting('seo_default_og_image', '');
 $seoTwitterSite = (string)getSetting('seo_twitter_site', '');
 $seoImageAltSuffix = (string)getSetting('seo_image_alt_suffix', ' - car image');
 $seoImageTitleSuffix = (string)getSetting('seo_image_title_suffix', ' - photo');
+$googleAnalyticsId = (string)getSetting('google_analytics_id', '');
+$googleTagManagerId = (string)getSetting('google_tag_manager_id', '');
+$metaPixelId = (string)getSetting('meta_pixel_id', '');
+$customHeadScripts = (string)getSetting('custom_head_scripts', '');
+$customBodyScripts = (string)getSetting('custom_body_scripts', '');
 
 $adsEnabled = getSettingInt('ads_enabled', 0, 0, 1) === 1;
 $adsInjectionMode = (string)getSetting('ads_injection_mode', 'smart');
@@ -1486,6 +1526,40 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <?= $adsHtmlCode !== '' ? $adsHtmlCode : '<div class="ad-unit-inner">Place your ad code here</div>' ?>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card section-card mb-3" id="scripts-settings">
+                <div class="card-body">
+                    <h5><i class="bi bi-code-slash"></i> Scripts Settings</h5>
+                    <form method="post" class="row g-2 align-items-end">
+                        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <label class="form-label">Google Analytics ID</label>
+                            <input type="text" name="google_analytics_id" class="form-control" maxlength="30" value="<?= e($googleAnalyticsId) ?>" placeholder="G-XXXXXXXXXX">
+                            <small class="text-secondary">Supports GA4, GT, UA, and Google Ads IDs.</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Google Tag Manager ID</label>
+                            <input type="text" name="google_tag_manager_id" class="form-control" maxlength="20" value="<?= e($googleTagManagerId) ?>" placeholder="GTM-XXXXXXX">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Meta Pixel ID</label>
+                            <input type="text" name="meta_pixel_id" class="form-control" maxlength="30" value="<?= e($metaPixelId) ?>" placeholder="123456789012345">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Custom &lt;head&gt; Scripts</label>
+                            <textarea name="custom_head_scripts" class="form-control" rows="4" placeholder="&lt;script&gt;...&lt;/script&gt;"><?= e($customHeadScripts) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Custom Footer Scripts (before &lt;/body&gt;)</label>
+                            <textarea name="custom_body_scripts" class="form-control" rows="4" placeholder="&lt;script&gt;...&lt;/script&gt;"><?= e($customBodyScripts) ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button name="update_scripts_settings" value="1" class="btn btn-outline-light w-100">Save Scripts Settings</button>
+                        </div>
+                    </form>
+                    <small class="text-secondary">Use this section to inject tracking scripts globally across the site.</small>
                 </div>
             </div>
 
