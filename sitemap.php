@@ -9,7 +9,7 @@ if ($baseUrl === '') {
     $baseUrl = 'http://localhost';
 }
 
-$publicationName = SITE_TITLE;
+$publicationName = getSiteTitle();
 $publicationLanguage = 'ar';
 
 $urls = [];

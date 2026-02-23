@@ -1,6 +1,8 @@
 <?php
 require_once 'functions.php';
 
+$siteTitle = getSiteTitle();
+
 $maxAttempts = 5;
 $lockSeconds = 60;
 $now = time();
@@ -50,7 +52,7 @@ if (!isset($_SESSION['logged'])) {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Admin Login - <?= e(SITE_TITLE) ?></title>
+        <title>Admin Login - <?= e($siteTitle) ?></title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {
@@ -67,7 +69,7 @@ if (!isset($_SESSION['logged'])) {
     <body class="d-flex align-items-center justify-content-center text-light p-3">
     <main class="card bg-dark shadow-lg login-card w-100">
         <div class="card-body p-4 p-md-5">
-            <h1 class="h4 mb-3 text-center"><?= e(SITE_TITLE) ?> Admin</h1>
+            <h1 class="h4 mb-3 text-center"><?= e($siteTitle) ?> Admin</h1>
             <p class="text-secondary text-center mb-4">Secure access to content management dashboard.</p>
 
             <?php if ($loginError): ?>
@@ -147,6 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['update_seo_settings'])) {
+        $configuredSiteTitle = trim((string)($_POST['site_title'] ?? ''));
         $homeTitle = trim((string)($_POST['seo_home_title'] ?? ''));
         $homeDescription = trim((string)($_POST['seo_home_description'] ?? ''));
         $articleTitleSuffix = trim((string)($_POST['seo_article_title_suffix'] ?? ''));
@@ -159,6 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $seoAutoLinkAutoInternal = isset($_POST['seo_auto_link_auto_internal']) ? 1 : 0;
         $seoAutoLinkMaxPerArticle = (int)($_POST['seo_auto_link_max_per_article'] ?? 3);
 
+        if (mb_strlen($configuredSiteTitle) > 80) {
+            $configuredSiteTitle = mb_substr($configuredSiteTitle, 0, 80);
+        }
         if (mb_strlen($homeTitle) > 120) {
             $homeTitle = mb_substr($homeTitle, 0, 120);
         }
@@ -191,6 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $seoAutoLinkMaxPerArticle = max(1, min(10, $seoAutoLinkMaxPerArticle));
 
+        setSetting('site_title', $configuredSiteTitle !== '' ? $configuredSiteTitle : SITE_TITLE);
         setSetting('seo_home_title', $homeTitle);
         setSetting('seo_home_description', $homeDescription);
         setSetting('seo_article_title_suffix', $articleTitleSuffix);
@@ -971,9 +978,9 @@ foreach ($pageVisitStats as $visitRow) {
     $totalTrackedVisitors += (int)($visitRow['unique_visitors'] ?? 0);
 }
 $dailyLimit = (int)getSetting('daily_limit', 5);
-$seoHomeTitle = (string)getSetting('seo_home_title', SITE_TITLE);
+$seoHomeTitle = (string)getSetting('seo_home_title', $siteTitle);
 $seoHomeDescription = (string)getSetting('seo_home_description', 'Automotive reviews, guides, and practical car ownership tips.');
-$seoArticleTitleSuffix = (string)getSetting('seo_article_title_suffix', SITE_TITLE);
+$seoArticleTitleSuffix = (string)getSetting('seo_article_title_suffix', $siteTitle);
 $seoDefaultRobots = (string)getSetting('seo_default_robots', 'index,follow');
 $seoDefaultOgImage = (string)getSetting('seo_default_og_image', '');
 $seoTwitterSite = (string)getSetting('seo_twitter_site', '');
@@ -1120,7 +1127,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin Panel - <?= e(SITE_TITLE) ?></title>
+    <title>Admin Panel - <?= e($siteTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <style>
@@ -1313,7 +1320,7 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
 <div class="container py-4 py-lg-5">
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
         <div>
-            <h1 class="mb-1"><i class="bi bi-speedometer2"></i> <?= e(SITE_TITLE) ?> Control Panel</h1>
+            <h1 class="mb-1"><i class="bi bi-speedometer2"></i> <?= e($siteTitle) ?> Control Panel</h1>
             <p class="text-secondary mb-0">Manage article generation, RSS/normal sources, and publishing workflow.</p>
         </div>
         <div class="d-flex gap-2">
@@ -1474,6 +1481,11 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <h5><i class="bi bi-search"></i> SEO Settings</h5>
                     <form method="post" class="row g-2 align-items-end">
                         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+                        <div class="col-12">
+                            <label class="form-label">Site Brand Title</label>
+                            <input type="text" name="site_title" class="form-control" maxlength="80" value="<?= e($siteTitle) ?>" placeholder="AutoCar Niche">
+                            <small class="text-secondary">Used for navbar, admin header, API site name, and sitemap publication name.</small>
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Homepage Title</label>
                             <input type="text" name="seo_home_title" class="form-control" maxlength="120" value="<?= e($seoHomeTitle) ?>">
@@ -1884,7 +1896,8 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="card-body">
                     <h5><i class="bi bi-gear-wide-connected"></i> System Constants (Read Only)</h5>
                     <div class="small">
-                        <div><span class="text-secondary">SITE_TITLE:</span> <code><?= e(SITE_TITLE) ?></code></div>
+                        <div><span class="text-secondary">SITE_TITLE (fallback constant):</span> <code><?= e(SITE_TITLE) ?></code></div>
+                        <div><span class="text-secondary">Configured Site Title:</span> <code><?= e($siteTitle) ?></code></div>
                         <div><span class="text-secondary">DB_FILE:</span> <code><?= e(DB_FILE) ?></code></div>
                         <div><span class="text-secondary">Password Hash:</span> <code><?= e(substr(PASSWORD_HASH, 0, 20)) ?>...</code></div>
                     </div>
