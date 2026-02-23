@@ -78,6 +78,10 @@ curl "http://localhost:8000/api.php?endpoint=article&slug=your-article-slug"
 
 Supported query params for `api.php` (articles endpoint): `q`, `category`, `published_from`, `published_to`, `sort` (`newest`, `oldest`, `title_asc`, `title_desc`, `relevance`), `page`, `per_page`.
 
+You can now lock the API from `admin.php` (**Core Pipeline Config**) by enabling **API Lock** and setting an API key. When enabled, all API calls must include either:
+- `?key=YOUR_SECRET_KEY` query parameter, or
+- `X-API-Key: YOUR_SECRET_KEY` request header.
+
 ### Automatic AI publishing
 
 From `admin.php`, you can also choose the active **Content Workflow** (`RSS Workflow` or `Normal Sites Workflow`). The same selected workflow is executed when you click run manually and when `cron.php` is called.
