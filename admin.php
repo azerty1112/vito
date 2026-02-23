@@ -383,6 +383,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $visitExcludedIps = normalizeExcludedIpRules($visitExcludedIps);
 
+        $apiLockEnabled = isset($_POST['api_lock_enabled']) ? 1 : 0;
+        $apiAccessKey = trim((string)($_POST['api_access_key'] ?? ''));
+        if (mb_strlen($apiAccessKey) > 255) {
+            $apiAccessKey = mb_substr($apiAccessKey, 0, 255);
+        }
+
+        if ($apiLockEnabled === 1 && $apiAccessKey === '') {
+            $_SESSION['flash_message'] = 'API lock is enabled, so API access key cannot be empty.';
+            $_SESSION['flash_type'] = 'danger';
+            header('Location: admin.php');
+            exit;
+        }
+
         setSetting('min_words_from', (string)$minWordsFrom);
         setSetting('min_words_to', (string)$minWordsTo);
         setSetting('min_words', (string)$minWords);
@@ -392,6 +405,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('queue_max_attempts', (string)$queueMaxAttempts);
         setSetting('auto_publish_interval_minutes', (string)$intervalMinutes);
         setSetting('visit_excluded_ips', $visitExcludedIps);
+        setSetting('api_lock_enabled', (string)$apiLockEnabled);
+        setSetting('api_access_key', $apiAccessKey);
 
         // Keep minute + second based scheduler settings synchronized.
         $secondsFromMinutes = $intervalMinutes > intdiv(PHP_INT_MAX, 60) ? PHP_INT_MAX : ($intervalMinutes * 60);
@@ -1028,6 +1043,8 @@ $fetchRetryBackoffMs = getSettingInt('fetch_retry_backoff_ms', 350, 100, 3000);
 $queueSourceCooldownSeconds = getSettingInt('queue_source_cooldown_seconds', 180, 30, 7200);
 $fetchUserAgent = (string)getSetting('fetch_user_agent', 'Mozilla/5.0 (compatible; VitoBot/1.0; +https://example.com/bot)');
 $visitExcludedIps = (string)getSetting('visit_excluded_ips', '');
+$apiLockEnabled = getSettingInt('api_lock_enabled', 0, 0, 1) === 1;
+$apiAccessKey = (string)getSetting('api_access_key', '');
 $detectedVisitorIp = getVisitorIpAddress();
 $selectedWorkflow = getSelectedContentWorkflow();
 $workflowSummary = getContentWorkflowSummary();
@@ -1726,6 +1743,17 @@ $settingsRows = $settingsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <div class="col-6">
                             <label class="form-label">Auto Publish Interval (minutes)</label>
                             <input type="number" name="auto_publish_interval_minutes" class="form-control" min="1" value="<?= (int)$autoPublishIntervalMinutes ?>">
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" role="switch" id="api_lock_enabled" name="api_lock_enabled" <?= $apiLockEnabled ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="api_lock_enabled">Enable API Lock (require API key)</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">API Access Key</label>
+                            <input type="text" name="api_access_key" class="form-control" maxlength="255" value="<?= e($apiAccessKey) ?>" placeholder="Set a secret key for api.php">
+                            <small class="text-secondary">When lock is enabled, pass key using <code>?key=YOUR_SECRET</code> or <code>X-API-Key</code> header.</small>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Exclude IPs From Visit Analytics</label>

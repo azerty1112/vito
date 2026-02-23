@@ -5,6 +5,21 @@ publishAutoArticleBySchedule();
 header('Content-Type: application/json; charset=utf-8');
 
 $pdo = db_connect();
+$apiLockEnabled = getSettingInt('api_lock_enabled', 0, 0, 1) === 1;
+if ($apiLockEnabled) {
+    $configuredApiKey = trim((string)getSetting('api_access_key', ''));
+    $requestApiKey = trim((string)($_GET['key'] ?? $_SERVER['HTTP_X_API_KEY'] ?? ''));
+
+    if ($configuredApiKey === '' || !hash_equals($configuredApiKey, $requestApiKey)) {
+        http_response_code(401);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'invalid_api_key',
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 $endpoint = $_GET['endpoint'] ?? 'articles';
 
 if ($endpoint === 'stats') {
