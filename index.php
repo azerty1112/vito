@@ -643,8 +643,8 @@ if ($slug === '' && $staticPage === '') {
         }
 
         .quick-categories a.active {
-            background: #ea580c;
-            border-color: #ea580c;
+            background: #9a3412;
+            border-color: #9a3412;
             color: #fff;
         }
 
@@ -826,6 +826,7 @@ $baseQuery['view'] = $view;
 $baseQuery['per_page'] = $perPage;
 ?>
 
+<main id="main-content">
 <div class="container content-shell py-5">
 <?php if ($staticPage !== ''): ?>
     <?php $selectedPage = $staticPages[$staticPage]; ?>
@@ -1030,7 +1031,7 @@ $baseQuery['per_page'] = $perPage;
                 <?php $articleQuery = array_merge($baseQuery, ['slug' => $row['slug']]); ?>
                 <a href="?<?= e(http_build_query($articleQuery)) ?>" class="list-group-item list-group-item-action py-3">
                     <div class="d-flex w-100 justify-content-between">
-                        <h5 class="mb-1"><?= e($row['title']) ?></h5>
+                        <h3 class="h5 mb-1"><?= e($row['title']) ?></h3>
                         <small class="text-muted"><?= estimateReadingTime($row['content']) ?> min</small>
                     </div>
                     <p class="mb-1 text-muted"><?= e($row['excerpt']) ?></p>
@@ -1050,7 +1051,7 @@ $baseQuery['per_page'] = $perPage;
                     <div class="card h-100 shadow-sm">
                         <img src="<?= e($cardImage) ?>" class="card-img-top" style="height:200px;object-fit:cover" alt="<?= e(buildImageSeoText($row['title'] ?? '', $row['slug'] ?? '', $imageAltSuffix)) ?>" title="<?= e(buildImageSeoText($row['title'] ?? '', $row['slug'] ?? '', $imageTitleSuffix)) ?>" loading="lazy" decoding="async">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title"><?= e($row['title']) ?></h5>
+                            <h3 class="card-title h5"><?= e($row['title']) ?></h3>
                             <p class="card-text text-muted"><?= e($row['excerpt']) ?></p>
                             <div class="d-flex flex-wrap gap-2 mb-3">
                                 <span class="meta-pill">📅 <?= e($row['published_at']) ?></span>
@@ -1108,6 +1109,7 @@ $baseQuery['per_page'] = $perPage;
     </div>
 </footer>
 </div>
+</main>
 <?php if ($googleTagManagerId !== ''): ?>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?= e($googleTagManagerId) ?>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <?php endif; ?>
