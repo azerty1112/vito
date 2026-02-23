@@ -15,7 +15,7 @@ if ($endpoint === 'stats') {
     $workflowSummary = getContentWorkflowSummary();
 
     echo json_encode([
-        'site' => SITE_TITLE,
+        'site' => getSiteTitle(),
         'total_articles' => $totalArticles,
         'total_rss_sources' => $totalSources,
         'total_web_sources' => $totalWebSources,

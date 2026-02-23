@@ -16,6 +16,12 @@ function e($text) {
     return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
 }
 
+
+function getSiteTitle() {
+    $configuredTitle = trim((string)getSetting('site_title', SITE_TITLE));
+    return $configuredTitle !== '' ? $configuredTitle : SITE_TITLE;
+}
+
 function getSiteBaseUrl() {
     $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
     if ($host === '') {

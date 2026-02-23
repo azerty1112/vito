@@ -78,9 +78,12 @@ $pdo->exec("DELETE FROM rss_sources WHERE id NOT IN (SELECT MIN(id) FROM rss_sou
 $pdo->exec("DELETE FROM web_sources WHERE id NOT IN (SELECT MIN(id) FROM web_sources GROUP BY url)");
 $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_rss_sources_url ON rss_sources(url)");
 $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_web_sources_url ON web_sources(url)");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_articles_category_published_id ON articles(category, published_at, id)");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_articles_published_id ON articles(published_at, id)");
 
 // إعدادات افتراضية
 $defaults = [
+    'site_title' => SITE_TITLE,
     'min_words' => '3000',
     'auto_publish' => '1',
     'daily_limit' => '5',

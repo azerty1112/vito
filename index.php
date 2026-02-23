@@ -6,7 +6,8 @@ $pdo = db_connect();
 $slug = trim($_GET['slug'] ?? '');
 $staticPage = trim((string)($_GET['doc'] ?? ''));
 $baseUrl = getSiteBaseUrl();
-$pageTitle = (string)getSetting('seo_home_title', SITE_TITLE);
+$siteTitle = getSiteTitle();
+$pageTitle = (string)getSetting('seo_home_title', $siteTitle);
 $pageDescription = (string)getSetting('seo_home_description', 'Automotive reviews, guides, and practical car ownership tips.');
 $canonicalUrl = $baseUrl . '/index.php';
 $openGraphType = 'website';
@@ -73,9 +74,9 @@ if (!in_array($robotsDirective, ['index,follow', 'noindex,follow', 'index,nofoll
 }
 $defaultSocialImage = trim((string)getSetting('seo_default_og_image', ''));
 $twitterSiteUsername = trim((string)getSetting('seo_twitter_site', ''));
-$articleTitleSuffix = trim((string)getSetting('seo_article_title_suffix', SITE_TITLE));
+$articleTitleSuffix = trim((string)getSetting('seo_article_title_suffix', $siteTitle));
 if ($articleTitleSuffix === '') {
-    $articleTitleSuffix = SITE_TITLE;
+    $articleTitleSuffix = $siteTitle;
 }
 $imageAltSuffix = trim((string)getSetting('seo_image_alt_suffix', ' - car image'));
 $imageTitleSuffix = trim((string)getSetting('seo_image_title_suffix', ' - photo'));
@@ -109,7 +110,7 @@ function buildImageSeoText($primary, $fallback, $suffix) {
     return trim($base);
 }
 
-$socialImageAltText = buildImageSeoText($pageTitle, SITE_TITLE, $imageAltSuffix);
+$socialImageAltText = buildImageSeoText($pageTitle, $siteTitle, $imageAltSuffix);
 
 $isFilteredListing = $slug === '' && (
     trim((string)($_GET['q'] ?? '')) !== ''
@@ -123,7 +124,7 @@ if ($isFilteredListing) {
 }
 
 if ($staticPage !== '') {
-    $pageTitle = $staticPages[$staticPage]['title'] . ' | ' . SITE_TITLE;
+    $pageTitle = $staticPages[$staticPage]['title'] . ' | ' . $siteTitle;
     $pageDescription = $staticPages[$staticPage]['description'];
     $canonicalUrl = $baseUrl . '/index.php?doc=' . rawurlencode($staticPage);
     $openGraphType = 'website';
@@ -133,7 +134,7 @@ if ($staticPage !== '') {
 }
 
 if ($slug !== '') {
-    $seoStmt = $pdo->prepare("SELECT title, slug, excerpt, content, image, published_at FROM articles WHERE slug = ? LIMIT 1");
+    $seoStmt = $pdo->prepare("SELECT id, title, slug, excerpt, content, image, published_at, category FROM articles WHERE slug = ? LIMIT 1");
     $seoStmt->execute([$slug]);
     $seoArticle = $seoStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -147,7 +148,7 @@ if ($slug !== '') {
         $canonicalUrl = $baseUrl . '/index.php?slug=' . rawurlencode((string)$seoArticle['slug']);
         $openGraphType = 'article';
         $openGraphImage = trim((string)($seoArticle['image'] ?? '')) ?: ($defaultSocialImage !== '' ? $defaultSocialImage : null);
-        $socialImageAltText = buildImageSeoText($seoArticle['title'] ?? '', SITE_TITLE, $imageAltSuffix);
+        $socialImageAltText = buildImageSeoText($seoArticle['title'] ?? '', $siteTitle, $imageAltSuffix);
 
         $articleStructuredData = [
             '@context' => 'https://schema.org',
@@ -156,11 +157,11 @@ if ($slug !== '') {
             'description' => $pageDescription,
             'author' => [
                 '@type' => 'Organization',
-                'name' => SITE_TITLE,
+                'name' => $siteTitle,
             ],
             'publisher' => [
                 '@type' => 'Organization',
-                'name' => SITE_TITLE,
+                'name' => $siteTitle,
             ],
             'datePublished' => date('c', strtotime((string)$seoArticle['published_at'])),
             'dateModified' => date('c', strtotime((string)$seoArticle['published_at'])),
@@ -196,7 +197,7 @@ if ($slug !== '') {
 $websiteStructuredData = [
     '@context' => 'https://schema.org',
     '@type' => 'WebSite',
-    'name' => SITE_TITLE,
+    'name' => $siteTitle,
     'url' => $baseUrl . '/index.php',
     'potentialAction' => [
         '@type' => 'SearchAction',
@@ -262,6 +263,9 @@ if ($slug === '' && $staticPage === '') {
         <meta name="twitter:image" content="<?= e($openGraphImage) ?>">
         <meta name="twitter:image:alt" content="<?= e($socialImageAltText) ?>">
     <?php endif; ?>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script type="application/ld+json"><?= json_encode($websiteStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
     <?php if ($articleStructuredData): ?>
         <script type="application/ld+json"><?= json_encode($articleStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
@@ -272,39 +276,65 @@ if ($slug === '' && $staticPage === '') {
     <?php if ($listingStructuredData): ?>
         <script type="application/ld+json"><?= json_encode($listingStructuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
     <?php endif; ?>
-    <?php if ($googleAnalyticsId !== ''): ?>
-        <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($googleAnalyticsId) ?>"></script>
+    <?php if ($googleAnalyticsId !== '' || $googleTagManagerId !== '' || $metaPixelId !== ''): ?>
         <script>
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', <?= json_encode($googleAnalyticsId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
-        </script>
-    <?php endif; ?>
-    <?php if ($googleTagManagerId !== ''): ?>
-        <script>
-            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer',<?= json_encode($googleTagManagerId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
-        </script>
-    <?php endif; ?>
-    <?php if ($metaPixelId !== ''): ?>
-        <script>
-            !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-            n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-            n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-            t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script',
-            'https://connect.facebook.net/en_US/fbevents.js');
-            fbq('init', <?= json_encode($metaPixelId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
-            fbq('track', 'PageView');
+            (function () {
+                var gaId = <?= json_encode($googleAnalyticsId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+                var gtmId = <?= json_encode($googleTagManagerId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+                var pixelId = <?= json_encode($metaPixelId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+                function loadScript(src) {
+                    var script = document.createElement('script');
+                    script.async = true;
+                    script.src = src;
+                    document.head.appendChild(script);
+                }
+
+                function loadTrackingScripts() {
+                    if (gaId) {
+                        window.dataLayer = window.dataLayer || [];
+                        window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+                        window.gtag('js', new Date());
+                        window.gtag('config', gaId);
+                        loadScript('https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(gaId));
+                    }
+
+                    if (gtmId) {
+                        window.dataLayer = window.dataLayer || [];
+                        window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
+                        loadScript('https://www.googletagmanager.com/gtm.js?id=' + encodeURIComponent(gtmId));
+                    }
+
+                    if (pixelId) {
+                        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+                        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+                        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script',
+                        'https://connect.facebook.net/en_US/fbevents.js');
+                        fbq('init', pixelId);
+                        fbq('track', 'PageView');
+                    }
+                }
+
+                function deferTracking() {
+                    if ('requestIdleCallback' in window) {
+                        requestIdleCallback(loadTrackingScripts, { timeout: 2500 });
+                    } else {
+                        setTimeout(loadTrackingScripts, 1200);
+                    }
+                }
+
+                if (document.readyState === 'complete') {
+                    deferTracking();
+                } else {
+                    window.addEventListener('load', deferTracking, { once: true });
+                }
+            })();
         </script>
     <?php endif; ?>
     <?php if ($customHeadScripts !== ''): ?>
         <?= $customHeadScripts ?>
     <?php endif; ?>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
             --brand-primary: #f97316;
@@ -733,7 +763,7 @@ if ($slug === '' && $staticPage === '') {
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container flex-wrap gap-2 py-2">
-        <a class="navbar-brand" href="index.php"><?= e(SITE_TITLE) ?></a>
+        <a class="navbar-brand" href="index.php"><?= e($siteTitle) ?></a>
         <div class="d-flex gap-2 flex-wrap">
             <a href="index.php?doc=about" class="btn btn-sm btn-outline-light">About</a>
             <a href="index.php?doc=privacy" class="btn btn-sm btn-outline-light">Privacy</a>
@@ -842,9 +872,7 @@ $baseQuery['per_page'] = $perPage;
     </section>
 <?php elseif ($slug !== ''): ?>
     <?php
-    $stmt = $pdo->prepare("SELECT * FROM articles WHERE slug = ?");
-    $stmt->execute([$slug]);
-    $art = $stmt->fetch(PDO::FETCH_ASSOC);
+    $art = $seoArticle ?? null;
     if ($art) {
         recordPageVisit('article:' . $art['slug'], 'Article: ' . $art['title']);
     } else {
@@ -928,12 +956,12 @@ $baseQuery['per_page'] = $perPage;
         $params['category'] = $category;
     }
     if ($publishedFrom !== '') {
-        $clauses[] = "DATE(published_at) >= :published_from";
-        $params['published_from'] = $publishedFrom;
+        $clauses[] = "published_at >= :published_from";
+        $params['published_from'] = $publishedFrom . " 00:00:00";
     }
     if ($publishedTo !== '') {
-        $clauses[] = "DATE(published_at) <= :published_to";
-        $params['published_to'] = $publishedTo;
+        $clauses[] = "published_at <= :published_to";
+        $params['published_to'] = $publishedTo . " 23:59:59";
     }
     $where = $clauses ? ('WHERE ' . implode(' AND ', $clauses)) : '';
 
@@ -950,7 +978,7 @@ $baseQuery['per_page'] = $perPage;
         $orderBy = '(CASE WHEN title LIKE :search_exact THEN 100 ELSE 0 END + CASE WHEN excerpt LIKE :search_exact THEN 45 ELSE 0 END + CASE WHEN content LIKE :search_exact THEN 25 ELSE 0 END + CASE WHEN title LIKE :search THEN 20 ELSE 0 END + CASE WHEN excerpt LIKE :search THEN 10 ELSE 0 END) DESC, id DESC';
     }
 
-    $sql = "SELECT * FROM articles $where ORDER BY $orderBy LIMIT :limit OFFSET :offset";
+    $sql = "SELECT id, title, slug, excerpt, image, category, published_at, MAX(1, CAST(ROUND(((LENGTH(content) - LENGTH(REPLACE(content, ' ', '')) + 1) / 200.0)) AS INTEGER)) AS reading_minutes FROM articles $where ORDER BY $orderBy LIMIT :limit OFFSET :offset";
     $stmt = $pdo->prepare($sql);
     if ($search !== '') {
         $stmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
@@ -974,7 +1002,7 @@ $baseQuery['per_page'] = $perPage;
 
     $featured = null;
     if ($page === 1) {
-        $featureStmt = $pdo->prepare("SELECT * FROM articles $where ORDER BY id DESC LIMIT 1");
+        $featureStmt = $pdo->prepare("SELECT title, slug, excerpt FROM articles $where ORDER BY id DESC LIMIT 1");
         if ($search !== '') {
             $featureStmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
         }
@@ -982,10 +1010,10 @@ $baseQuery['per_page'] = $perPage;
             $featureStmt->bindValue(':category', $category, PDO::PARAM_STR);
         }
         if ($publishedFrom !== '') {
-            $featureStmt->bindValue(':published_from', $publishedFrom, PDO::PARAM_STR);
+            $featureStmt->bindValue(':published_from', $publishedFrom . " 00:00:00", PDO::PARAM_STR);
         }
         if ($publishedTo !== '') {
-            $featureStmt->bindValue(':published_to', $publishedTo, PDO::PARAM_STR);
+            $featureStmt->bindValue(':published_to', $publishedTo . " 23:59:59", PDO::PARAM_STR);
         }
         $featureStmt->execute();
         $featured = $featureStmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -995,7 +1023,7 @@ $baseQuery['per_page'] = $perPage;
     if ($articles) {
         $sumReading = 0;
         foreach ($articles as $entry) {
-            $sumReading += estimateReadingTime($entry['content']);
+            $sumReading += (int)($entry['reading_minutes'] ?? 1);
         }
         $avgReading = (int)ceil($sumReading / count($articles));
     }
@@ -1032,7 +1060,7 @@ $baseQuery['per_page'] = $perPage;
                 <a href="?<?= e(http_build_query($articleQuery)) ?>" class="list-group-item list-group-item-action py-3">
                     <div class="d-flex w-100 justify-content-between">
                         <h3 class="h5 mb-1"><?= e($row['title']) ?></h3>
-                        <small class="text-muted"><?= estimateReadingTime($row['content']) ?> min</small>
+                        <small class="text-muted"><?= (int)($row['reading_minutes'] ?? 1) ?> min</small>
                     </div>
                     <p class="mb-1 text-muted"><?= e($row['excerpt']) ?></p>
                     <small class="text-secondary d-flex flex-wrap gap-2"><span class="meta-pill">🏷 <?= e(getPublicCategoryLabel($row['category'] ?? '')) ?></span><span class="meta-pill">📅 <?= e($row['published_at']) ?></span></small>
@@ -1051,12 +1079,12 @@ $baseQuery['per_page'] = $perPage;
                     <div class="card h-100 shadow-sm">
                         <img src="<?= e($cardImage) ?>" class="card-img-top" style="height:200px;object-fit:cover" alt="<?= e(buildImageSeoText($row['title'] ?? '', $row['slug'] ?? '', $imageAltSuffix)) ?>" title="<?= e(buildImageSeoText($row['title'] ?? '', $row['slug'] ?? '', $imageTitleSuffix)) ?>" loading="lazy" decoding="async">
                         <div class="card-body d-flex flex-column">
-                            <h3 class="card-title h5"><?= e($row['title']) ?></h3>
+                            <h3 class="card-title h5 mb-0"><?= e($row['title']) ?></h3>
                             <p class="card-text text-muted"><?= e($row['excerpt']) ?></p>
                             <div class="d-flex flex-wrap gap-2 mb-3">
                                 <span class="meta-pill">📅 <?= e($row['published_at']) ?></span>
                                 <span class="meta-pill">🏷 <?= e(getPublicCategoryLabel($row['category'] ?? '')) ?></span>
-                                <span class="meta-pill">⏱ <?= estimateReadingTime($row['content']) ?> min</span>
+                                <span class="meta-pill">⏱ <?= (int)($row['reading_minutes'] ?? 1) ?> min</span>
                             </div>
                             <?php $articleQuery = array_merge($baseQuery, ['slug' => $row['slug']]); ?>
                             <a href="?<?= e(http_build_query($articleQuery)) ?>" class="btn btn-primary mt-auto">Read Full Article →</a>
