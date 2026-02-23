@@ -1,6 +1,5 @@
 <?php
 require_once 'functions.php';
-publishAutoArticleBySchedule();
 
 $pdo = db_connect();
 $slug = trim($_GET['slug'] ?? '');
@@ -348,6 +347,8 @@ if ($slug === '' && $staticPage === '') {
             color: #1f2937;
             min-height: 100vh;
             position: relative;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
         }
 
         body::before,
@@ -405,11 +406,19 @@ if ($slug === '' && $staticPage === '') {
             transition: transform 0.25s ease, box-shadow 0.25s ease;
             border-radius: 1rem;
             overflow: hidden;
+            content-visibility: auto;
+            contain-intrinsic-size: 280px;
         }
 
-        .card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 18px 35px rgba(249, 115, 22, 0.2);
+        @media (hover: hover) {
+            .card:hover {
+                transform: translateY(-6px);
+                box-shadow: 0 18px 35px rgba(249, 115, 22, 0.2);
+            }
+
+            .card:hover .card-title {
+                color: #c2410c;
+            }
         }
 
         .card-img-top {
@@ -574,10 +583,6 @@ if ($slug === '' && $staticPage === '') {
 
         .card-title {
             color: #1e293b;
-        }
-
-        .card:hover .card-title {
-            color: #c2410c;
         }
 
         .inline-ad-unit {
@@ -754,8 +759,61 @@ if ($slug === '' && $staticPage === '') {
         }
 
         @media (max-width: 767px) {
+            body::before,
+            body::after {
+                display: none;
+            }
+
+            .navbar {
+                backdrop-filter: none;
+                box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
+            }
+
+            .card,
+            .list-group,
+            article,
+            .alert,
+            .stats-card,
+            .featured-spotlight {
+                box-shadow: 0 5px 12px rgba(15, 23, 42, 0.08);
+            }
+
+            .toolbar-strip {
+                margin-top: 0.55rem;
+            }
+
             .toolbar-form {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr auto;
+                padding: 0.5rem;
+                gap: 0.45rem;
+            }
+
+            .toolbar-form input[type="search"] {
+                grid-column: 1 / 2;
+                min-width: 0;
+            }
+
+            .toolbar-form .form-select,
+            .toolbar-form input[type="date"] {
+                display: none;
+            }
+
+            .toolbar-form .btn {
+                width: auto;
+                min-width: 86px;
+                padding-inline: 0.8rem;
+                white-space: nowrap;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation: none !important;
+                transition-duration: 0.01ms !important;
+                transition-delay: 0ms !important;
+                scroll-behavior: auto !important;
             }
         }
     </style>
